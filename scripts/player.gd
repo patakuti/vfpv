@@ -38,6 +38,7 @@ var _crash_respawn_timer: float = 0.0
 var _is_crashed: bool = false
 var _spawn_position: Vector3
 var _spawn_rotation: Vector3
+var post_process: Node  # set by main.gd
 
 func _ready() -> void:
 	_spawn_position = global_position
@@ -119,6 +120,12 @@ func _crash() -> void:
 	_is_crashed = true
 	_crash_respawn_timer = 1.0
 	velocity = Vector3.ZERO
+	# Crash effects
+	if post_process:
+		post_process.flash()
+		var active_cam = get_viewport().get_camera_3d()
+		if active_cam:
+			post_process.shake(active_cam)
 
 func _respawn() -> void:
 	_is_crashed = false

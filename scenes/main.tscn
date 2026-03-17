@@ -1,10 +1,14 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="0_main"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/vi_input.gd" id="2_vi_input"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="3_hud"]
 [ext_resource type="Script" path="res://scripts/terrain_manager.gd" id="4_terrain"]
+[ext_resource type="Script" path="res://scripts/post_process.gd" id="5_post_process"]
+[ext_resource type="Script" path="res://scripts/low_altitude_particles.gd" id="6_particles"]
+[ext_resource type="Shader" path="res://shaders/motion_blur.gdshader" id="7_blur_shader"]
+[ext_resource type="Shader" path="res://shaders/chromatic_aberration.gdshader" id="8_aberration_shader"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_player"]
 size = Vector3(1, 0.5, 2)
@@ -31,6 +35,34 @@ tonemap_mode = 2
 ambient_light_source = 2
 ambient_light_color = Color(0.85, 0.9, 1.0, 1)
 ambient_light_energy = 0.5
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_blur"]
+shader = ExtResource("7_blur_shader")
+shader_parameter/speed_ratio = 0.0
+shader_parameter/samples = 8
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_aberration"]
+shader = ExtResource("8_aberration_shader")
+shader_parameter/speed_ratio = 0.0
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleMaterial_1"]
+direction = Vector3(0, 1, 0.3)
+spread = 40.0
+initial_velocity_min = 15.0
+initial_velocity_max = 30.0
+gravity = Vector3(0, -15, 0)
+angular_velocity_min = -90.0
+angular_velocity_max = 90.0
+turbulence_enabled = true
+turbulence_noise_strength = 1.5
+turbulence_noise_scale = 3.0
+turbulence_noise_speed_random = 0.3
+scale_min = 0.1
+scale_max = 0.25
+color = Color(0.95, 0.85, 0.5, 0.9)
+
+[sub_resource type="BoxMesh" id="Mesh_particle"]
+size = Vector3(0.08, 0.08, 0.15)
 
 [node name="Main" type="Node3D"]
 script = ExtResource("0_main")
@@ -65,10 +97,48 @@ fov = 80.0
 [node name="ViInput" type="Node" parent="Player"]
 script = ExtResource("2_vi_input")
 
+[node name="LowAltitudeParticles" type="GPUParticles3D" parent="Player"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, -8)
+amount = 200
+amount_ratio = 0.0
+emitting = false
+lifetime = 2.0
+process_material = SubResource("ParticleMaterial_1")
+draw_pass_1 = SubResource("Mesh_particle")
+visibility_aabb = AABB(-15, -5, -15, 30, 10, 30)
+script = ExtResource("6_particles")
+
 [node name="TerrainManager" type="Node3D" parent="."]
 script = ExtResource("4_terrain")
 
+[node name="PostProcess" type="CanvasLayer" parent="."]
+layer = 10
+script = ExtResource("5_post_process")
+
+[node name="MotionBlurRect" type="ColorRect" parent="PostProcess"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+material = SubResource("ShaderMaterial_blur")
+
+[node name="ChromaticAberrationRect" type="ColorRect" parent="PostProcess"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+material = SubResource("ShaderMaterial_aberration")
+
+[node name="FlashRect" type="ColorRect" parent="PostProcess"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(1, 1, 1, 0)
+
 [node name="HUD" type="CanvasLayer" parent="."]
+layer = 11
 script = ExtResource("3_hud")
 
 [node name="SpeedLabel" type="Label" parent="HUD"]
