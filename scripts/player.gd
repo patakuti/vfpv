@@ -5,10 +5,10 @@ extends CharacterBody3D
 @onready var follow_camera: Camera3D = $FollowCamera
 
 # Speed
-var speed: float = 50.0
-var base_speed: float = 50.0
-const MIN_SPEED: float = 10.0
-const MAX_SPEED: float = 200.0
+var speed: float = 80.0
+var base_speed: float = 80.0
+const MIN_SPEED: float = 20.0
+const MAX_SPEED: float = 400.0
 
 # Boost
 var boost_fuel: float = 100.0
