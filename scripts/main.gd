@@ -5,3 +5,5 @@ func _ready() -> void:
 	var vi_input = $Player/ViInput
 	var hud = $HUD
 	hud.setup(player, vi_input)
+	var terrain = $TerrainManager
+	terrain.setup(player)
