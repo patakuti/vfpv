@@ -24,6 +24,7 @@ const PITCH_RATE: float = 60.0
 
 # Physics
 const GRAVITY: float = 2.0
+const BOUNCE_DAMPING: float = 0.6
 
 # FOV
 const FOV_MIN: float = 80.0
@@ -34,11 +35,13 @@ var max_speed_record: float = 0.0
 var elapsed_time: float = 0.0
 
 # Crash
-var _crash_respawn_timer: float = 0.0
 var _is_crashed: bool = false
 var _spawn_position: Vector3
 var _spawn_rotation: Vector3
 var post_process: Node  # set by main.gd
+
+# God mode
+var god_mode: bool = false
 
 func _ready() -> void:
 	_spawn_position = global_position
@@ -50,15 +53,14 @@ func _ready() -> void:
 	vi_input.switch_fpv.connect(_on_switch_fpv)
 	vi_input.switch_follow.connect(_on_switch_follow)
 	vi_input.command_submitted.connect(_on_command_submitted)
+	vi_input.toggle_pause.connect(_on_toggle_pause)
+	vi_input.set_speed.connect(_on_set_speed)
 
 	# Start with FPV
 	_activate_camera(fpv_camera)
 
 func _physics_process(delta: float) -> void:
 	if _is_crashed:
-		_crash_respawn_timer -= delta
-		if _crash_respawn_timer <= 0.0:
-			_respawn()
 		return
 
 	elapsed_time += delta
@@ -94,8 +96,11 @@ func _physics_process(delta: float) -> void:
 
 	# Collision check
 	if get_slide_collision_count() > 0:
-		_crash()
-		return
+		if god_mode:
+			_bounce()
+		else:
+			_crash()
+			return
 
 	# Update records
 	max_speed_record = max(max_speed_record, current_speed)
@@ -116,9 +121,30 @@ func _update_follow_camera() -> void:
 		follow_camera.global_position = global_position + behind + up
 		follow_camera.look_at(global_position, Vector3.UP)
 
+func _bounce() -> void:
+	var collision := get_slide_collision(0)
+	var normal := collision.get_normal()
+	# Reflect direction off surface normal
+	var forward := -global_transform.basis.z
+	var reflected := forward.reflect(normal).normalized()
+	# If reflected direction points downward, force horizontal + slight upward
+	if reflected.y < 0.0:
+		reflected.y = 0.1
+		reflected = reflected.normalized()
+	# Reorient player to reflected direction
+	look_at(global_position + reflected, Vector3.UP)
+	# Push away from surface generously
+	global_position += normal * 3.0 + Vector3.UP * 2.0
+	speed *= BOUNCE_DAMPING
+	speed = max(speed, MIN_SPEED)
+	# Effects
+	if post_process:
+		var active_cam = get_viewport().get_camera_3d()
+		if active_cam:
+			post_process.shake(active_cam, 0.2, 0.15)
+
 func _crash() -> void:
 	_is_crashed = true
-	_crash_respawn_timer = 1.0
 	velocity = Vector3.ZERO
 	# Crash effects
 	if post_process:
@@ -139,9 +165,16 @@ func _activate_camera(cam: Camera3D) -> void:
 	fpv_camera.current = (cam == fpv_camera)
 	follow_camera.current = (cam == follow_camera)
 
+func _on_toggle_pause() -> void:
+	get_tree().paused = not get_tree().paused
+
 # Signal handlers
 func _on_set_max_speed() -> void:
 	speed = MAX_SPEED
+
+func _on_set_speed(value: float) -> void:
+	base_speed = clamp(value, MIN_SPEED, MAX_SPEED)
+	speed = base_speed
 
 func _on_set_min_speed() -> void:
 	speed = MIN_SPEED
@@ -165,5 +198,7 @@ func _on_command_submitted(command: String) -> void:
 					speed = base_speed
 		"reset":
 			_respawn()
+		"god":
+			god_mode = not god_mode
 		"quit", "q":
 			get_tree().quit()

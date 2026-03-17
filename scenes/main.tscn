@@ -95,6 +95,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 5)
 fov = 80.0
 
 [node name="ViInput" type="Node" parent="Player"]
+process_mode = 3
 script = ExtResource("2_vi_input")
 
 [node name="LowAltitudeParticles" type="GPUParticles3D" parent="Player"]
@@ -139,6 +140,7 @@ color = Color(1, 1, 1, 0)
 
 [node name="HUD" type="CanvasLayer" parent="."]
 layer = 11
+process_mode = 3
 script = ExtResource("3_hud")
 
 [node name="SpeedLabel" type="Label" parent="HUD"]
@@ -158,6 +160,16 @@ anchors_preset = 0
 offset_right = 150.0
 offset_bottom = 30.0
 text = "00:00"
+
+[node name="StatusLabel" type="Label" parent="HUD"]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -150.0
+offset_right = 150.0
+offset_bottom = 30.0
+horizontal_alignment = 1
+text = ""
 
 [node name="BoostBar" type="ProgressBar" parent="HUD"]
 anchors_preset = 7

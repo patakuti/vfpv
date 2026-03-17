@@ -22,6 +22,8 @@ godot --path /path/to/vfpv
 | `h` / `l` | Yaw left / right |
 | `j` / `k` | Pitch down / up |
 | `Space` | Boost (consumes fuel, auto-recovers) |
+| `p` | Pause / unpause |
+| `g<digits>` | Set speed (e.g. `g100` = 100 m/s) |
 | `gg` | Set max speed |
 | `G` (Shift+g) | Set min speed |
 | `.` | Repeat last action for 1 second |
@@ -35,6 +37,7 @@ godot --path /path/to/vfpv
 |---|---|
 | `:speed <n>` | Set base speed (20-400) |
 | `:reset` | Respawn at start position |
+| `:god` | Toggle god mode (bounce on collision) |
 | `:quit` or `:q` | Quit game |
 | `Escape` | Cancel and return to normal mode |
 
@@ -48,6 +51,8 @@ godot --path /path/to/vfpv
 - **Chromatic aberration** — RGB channel split at high speed
 - **Low altitude particles** — Parabolic debris particles when flying low and fast
 - **Crash effects** — Screen flash + camera shake on terrain collision
+- **God mode** — `:god` toggles invincibility (bounce off terrain instead of crashing)
+- **Pause** — `Escape` to pause, auto-pause in command mode
 - **Boost system** — Temporary 2x speed with fuel gauge
 - **HUD** — Speed, time, boost gauge, command line
 
