@@ -4,6 +4,7 @@ extends CanvasLayer
 @onready var time_label: Label = $TimeLabel
 @onready var boost_bar: ProgressBar = $BoostBar
 @onready var command_line: LineEdit = $CommandLine
+@onready var status_label: Label = $StatusLabel
 
 var player: CharacterBody3D
 var vi_input: Node
@@ -31,6 +32,16 @@ func _process(_delta: float) -> void:
 	time_label.text = "%02d:%02d" % [mins, secs]
 
 	boost_bar.value = player.boost_fuel
+
+	# Status indicator
+	var status_parts: Array[String] = []
+	if get_tree().paused and (not vi_input or vi_input.mode != vi_input.Mode.COMMAND):
+		status_parts.append("PAUSED")
+	if player.god_mode:
+		status_parts.append("GOD")
+	if player._is_crashed:
+		status_parts.append("CRASHED - :reset to restart")
+	status_label.text = "  ".join(status_parts)
 
 	# Toggle command line visibility
 	if vi_input:
