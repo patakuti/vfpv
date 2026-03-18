@@ -1,3 +1,7 @@
+# Godot generated
+.godot/
+*.uid
+
 # Project documents (local only)
 01_requirements.md
 02_design.md
