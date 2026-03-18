@@ -23,7 +23,7 @@ godot --path /path/to/vfpv
 | `j` / `k` | Pitch down / up |
 | `Space` | Boost (consumes fuel, auto-recovers) |
 | `p` | Pause / unpause |
-| `g<digits>` | Set speed (e.g. `g100` = 100 m/s) |
+| `<digits>g` | Set speed (e.g. `100g` = 100 m/s) |
 | `gg` | Set max speed |
 | `G` (Shift+g) | Set min speed |
 | `.` | Repeat last action for 1 second |
