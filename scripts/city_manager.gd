@@ -165,25 +165,33 @@ func _place_low_wide(body: StaticBody3D, rng: RandomNumberGenerator) -> Dictiona
 # ── Bridge ───────────────────────────────────────────────────
 
 func _place_bridge(chunk: Node3D, b1: Dictionary, b2: Dictionary) -> void:
+	var b1cx: float = float(b1.cx)
+	var b1cz: float = float(b1.cz)
+	var b2cx: float = float(b2.cx)
+	var b2cz: float = float(b2.cz)
+	var dx: float = b2cx - b1cx
+	var dz: float = b2cz - b1cz
+	var center_dist: float = sqrt(dx * dx + dz * dz)
+	# Full center-to-center length + overlap so bridge is embedded in both buildings
+	var bridge_length: float = center_dist + 4.0
 	var bridge_y: float = min(float(b1.height), float(b2.height)) * 0.5
-	var dx: float = float(b2.cx) - float(b1.cx)
-	var dz: float = float(b2.cz) - float(b1.cz)
-	var length: float = sqrt(dx * dx + dz * dz) - (float(b1.width) + float(b2.width)) * 0.25
-	if length <= 2.0:
-		return
-	var cx: float = (float(b1.cx) + float(b2.cx)) * 0.5
-	var cz: float = (float(b1.cz) + float(b2.cz)) * 0.5
-	var angle: float = atan2(dx, dz)
+	var bridge_cx: float = (b1cx + b2cx) * 0.5
+	var bridge_cz: float = (b1cz + b2cz) * 0.5
+
+	# Build transform so local +X points from b1 toward b2
+	var dir := Vector3(dx, 0.0, dz).normalized()
+	var basis_z := dir.cross(Vector3.UP).normalized()
+	var bridge_basis := Basis(dir, Vector3.UP, basis_z)
 
 	var bridge := StaticBody3D.new()
-	bridge.position = Vector3(cx, bridge_y, cz)
-	bridge.rotation.y = angle
-	_add_piece(bridge, Vector3(length, 2.5, 4.5), Vector3.ZERO, _mat_concrete)
+	bridge.transform = Transform3D(bridge_basis, Vector3(bridge_cx, bridge_y, bridge_cz))
+
+	_add_piece(bridge, Vector3(bridge_length, 2.5, 4.5), Vector3.ZERO, _mat_concrete)
 	# Railings (visual only)
 	for side in [-1.0, 1.0]:
 		var rail := MeshInstance3D.new()
 		var rmesh := BoxMesh.new()
-		rmesh.size = Vector3(length, 0.9, 0.2)
+		rmesh.size = Vector3(bridge_length, 0.9, 0.2)
 		rail.mesh = rmesh
 		rail.material_override = _mat_concrete
 		rail.position = Vector3(0.0, 1.7, side * 2.2)
