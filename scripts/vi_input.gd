@@ -9,11 +9,9 @@ var yaw_input: float = 0.0    # -1 = left(h), +1 = right(l)
 var pitch_input: float = 0.0  # -1 = down(j), +1 = up(k)
 var boost_pressed: bool = false
 
-# g prefix state: g -> g(wait) -> gg or g<digits>
-var _g_pending: bool = false
-var _g_timer: float = 0.0
-var _g_digits: String = ""
-const G_TIMEOUT: float = 0.5
+# Count prefix: <digits>g sets speed, gg = max speed
+var _count_digits: String = ""
+var _g_pending: bool = false  # true after first g, waiting for second g
 
 # Dot repeat
 var _last_action: String = ""
@@ -32,12 +30,6 @@ signal toggle_pause()
 func _process(delta: float) -> void:
 	if mode == Mode.COMMAND:
 		return
-
-	# g prefix timer
-	if _g_pending:
-		_g_timer -= delta
-		if _g_timer <= 0.0:
-			_finish_g_prefix()
 
 	# Dot replay timer
 	if _replaying:
@@ -105,34 +97,38 @@ func _handle_normal_key(event: InputEventKey) -> void:
 	# G (shift+g) -> min speed
 	if event.keycode == KEY_G and event.shift_pressed:
 		set_min_speed.emit()
+		_count_digits = ""
 		_g_pending = false
-		_g_digits = ""
 		get_viewport().set_input_as_handled()
 		return
 
-	# g prefix: digits collected while g_pending
-	if _g_pending and _is_digit_key(event.keycode):
-		_g_digits += _key_to_digit(event.keycode)
-		_g_timer = G_TIMEOUT  # reset timer on each digit
+	# Digit keys: accumulate count prefix
+	if _is_digit_key(event.keycode):
+		_count_digits += _key_to_digit(event.keycode)
+		_g_pending = false
 		get_viewport().set_input_as_handled()
 		return
 
-	# g key
+	# g key: <digits>g = set speed, gg = max speed, bare g = wait for second g
 	if event.keycode == KEY_G and not event.shift_pressed:
-		if _g_pending and _g_digits.is_empty():
+		if _count_digits != "":
+			var val := _count_digits.to_float()
+			if val > 0.0:
+				set_speed.emit(val)
+			_count_digits = ""
+			_g_pending = false
+		elif _g_pending:
 			# gg -> max speed
 			set_max_speed.emit()
 			_g_pending = false
 		else:
 			_g_pending = true
-			_g_timer = G_TIMEOUT
-			_g_digits = ""
 		get_viewport().set_input_as_handled()
 		return
 
-	# Any other key while g_pending -> finish g prefix first
-	if _g_pending:
-		_finish_g_prefix()
+	# Any other key clears pending state
+	_count_digits = ""
+	_g_pending = false
 
 	# Dot repeat
 	if event.keycode == KEY_PERIOD:
@@ -143,13 +139,6 @@ func _handle_normal_key(event: InputEventKey) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
-func _finish_g_prefix() -> void:
-	if _g_digits != "":
-		var val := _g_digits.to_float()
-		if val > 0.0:
-			set_speed.emit(val)
-	_g_pending = false
-	_g_digits = ""
 
 func _is_digit_key(keycode: Key) -> bool:
 	return keycode >= KEY_0 and keycode <= KEY_9
