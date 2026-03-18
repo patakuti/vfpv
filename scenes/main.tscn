@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="0_main"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
@@ -12,12 +12,6 @@
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_player"]
 size = Vector3(1, 0.5, 2)
-
-[sub_resource type="BoxMesh" id="BoxMesh_player"]
-size = Vector3(1, 0.5, 2)
-
-[sub_resource type="StandardMaterial3D" id="Material_player"]
-albedo_color = Color(0.2, 0.6, 0.9, 1)
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMaterial_1"]
 sky_top_color = Color(0.3, 0.55, 1.0, 1)
@@ -81,14 +75,11 @@ script = ExtResource("1_player")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
 shape = SubResource("BoxShape3D_player")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Player"]
-mesh = SubResource("BoxMesh_player")
-surface_material_override/0 = SubResource("Material_player")
-
 [node name="FPVCamera" type="Camera3D" parent="Player"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -1.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22, -0.05)
 current = true
 fov = 80.0
+near = 0.02
 
 [node name="FollowCamera" type="Camera3D" parent="Player"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 5)

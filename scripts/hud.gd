@@ -8,7 +8,6 @@ extends CanvasLayer
 
 var player: CharacterBody3D
 var vi_input: Node
-
 func _ready() -> void:
 	command_line.visible = false
 	command_line.text_submitted.connect(_on_command_submitted)

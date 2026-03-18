@@ -27,8 +27,6 @@ godot --path /path/to/vfpv
 | `gg` | Set max speed |
 | `G` (Shift+g) | Set min speed |
 | `.` | Repeat last action for 1 second |
-| `Ctrl+f` | FPV camera |
-| `Ctrl+b` | Follow camera |
 | `:` | Enter command mode |
 
 ### Command Mode
@@ -38,6 +36,8 @@ godot --path /path/to/vfpv
 | `:speed <n>` | Set base speed (20-400) |
 | `:reset` | Respawn at start position |
 | `:god` | Toggle god mode (bounce on collision) |
+| `:fpv` | Switch to FPV camera |
+| `:follow` | Switch to follow camera |
 | `:quit` or `:q` | Quit game |
 | `Escape` | Cancel and return to normal mode |
 
@@ -52,7 +52,9 @@ godot --path /path/to/vfpv
 - **Low altitude particles** — Parabolic debris particles when flying low and fast
 - **Crash effects** — Screen flash + camera shake on terrain collision
 - **God mode** — `:god` toggles invincibility (bounce off terrain instead of crashing)
-- **Pause** — `Escape` to pause, auto-pause in command mode
+- **Racing drone model** — X-frame drone with spinning propellers and neon LED accents
+- **FPV overlay** — Drone frame silhouette visible in FPV view
+- **Pause** — `p` to pause, auto-pause in command mode
 - **Boost system** — Temporary 2x speed with fuel gauge
 - **HUD** — Speed, time, boost gauge, command line
 

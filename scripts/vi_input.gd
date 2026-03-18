@@ -26,8 +26,6 @@ signal command_submitted(command: String)
 signal set_max_speed()
 signal set_min_speed()
 signal set_speed(value: float)
-signal switch_fpv()
-signal switch_follow()
 signal dot_replay_start(action: String)
 signal toggle_pause()
 
@@ -88,13 +86,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _handle_normal_key(event: InputEventKey) -> void:
 	# Ctrl combinations
 	if event.ctrl_pressed:
-		match event.keycode:
-			KEY_F:
-				switch_fpv.emit()
-				get_viewport().set_input_as_handled()
-			KEY_B:
-				switch_follow.emit()
-				get_viewport().set_input_as_handled()
 		return
 
 	# p -> toggle pause
