@@ -10,3 +10,21 @@ func _ready() -> void:
 	var post_process = $PostProcess
 	post_process.setup(player)
 	player.post_process = post_process
+	player.main = self
+
+func switch_stage(stage_name: String) -> void:
+	var terrain = $TerrainManager
+	var city = $CityManager
+	var player = $Player
+
+	match stage_name:
+		"terrain":
+			city.deactivate()
+			terrain.setup(player)
+		"city":
+			terrain.deactivate()
+			city.activate(player)
+		_:
+			return
+
+	player.respawn()

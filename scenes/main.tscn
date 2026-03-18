@@ -1,10 +1,11 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="0_main"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/vi_input.gd" id="2_vi_input"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="3_hud"]
 [ext_resource type="Script" path="res://scripts/terrain_manager.gd" id="4_terrain"]
+[ext_resource type="Script" path="res://scripts/city_manager.gd" id="9_city"]
 [ext_resource type="Script" path="res://scripts/post_process.gd" id="5_post_process"]
 [ext_resource type="Script" path="res://scripts/low_altitude_particles.gd" id="6_particles"]
 [ext_resource type="Shader" path="res://shaders/motion_blur.gdshader" id="7_blur_shader"]
@@ -102,6 +103,9 @@ script = ExtResource("6_particles")
 
 [node name="TerrainManager" type="Node3D" parent="."]
 script = ExtResource("4_terrain")
+
+[node name="CityManager" type="Node3D" parent="."]
+script = ExtResource("9_city")
 
 [node name="PostProcess" type="CanvasLayer" parent="."]
 layer = 10

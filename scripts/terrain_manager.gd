@@ -11,6 +11,7 @@ var _active_chunks: Dictionary = {}  # Vector2i -> Node3D
 var _player: Node3D
 var _pending_chunks: Array[Vector2i] = []
 var _shared_material: StandardMaterial3D
+var _enabled: bool = false
 
 func _ready() -> void:
 	# Primary terrain noise
@@ -32,9 +33,18 @@ func _ready() -> void:
 
 func setup(player: Node3D) -> void:
 	_player = player
+	_enabled = true
+
+func deactivate() -> void:
+	_enabled = false
+	_player = null
+	for key in _active_chunks:
+		_active_chunks[key].queue_free()
+	_active_chunks.clear()
+	_pending_chunks.clear()
 
 func _process(_delta: float) -> void:
-	if not _player:
+	if not _enabled or not _player:
 		return
 
 	var player_chunk := Vector2i(

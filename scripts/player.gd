@@ -39,6 +39,7 @@ var _is_crashed: bool = false
 var _spawn_position: Vector3
 var _spawn_rotation: Vector3
 var post_process: Node  # set by main.gd
+var main: Node  # set by main.gd
 
 # God mode
 var god_mode: bool = false
@@ -334,7 +335,7 @@ func _crash() -> void:
 		if active_cam:
 			post_process.shake(active_cam)
 
-func _respawn() -> void:
+func respawn() -> void:
 	_is_crashed = false
 	global_position = _spawn_position
 	rotation = _spawn_rotation
@@ -373,12 +374,15 @@ func _on_command_submitted(command: String) -> void:
 					base_speed = clamp(val, MIN_SPEED, MAX_SPEED)
 					speed = base_speed
 		"reset":
-			_respawn()
+			respawn()
 		"god":
 			god_mode = not god_mode
 		"fpv":
 			_activate_camera(fpv_camera)
 		"follow":
 			_activate_camera(follow_camera)
+		"stage":
+			if parts.size() >= 2 and main:
+				main.switch_stage(parts[1])
 		"quit", "q":
 			get_tree().quit()
