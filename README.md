@@ -38,13 +38,17 @@ godot --path /path/to/vfpv
 | `:god` | Toggle god mode (bounce on collision) |
 | `:fpv` | Switch to FPV camera |
 | `:follow` | Switch to follow camera |
+| `:stage terrain` | Switch to natural terrain stage |
+| `:stage city` | Switch to urban city stage |
 | `:quit` or `:q` | Quit game |
 | `Escape` | Cancel and return to normal mode |
 
 ## Features
 
 - **Vi-style controls** — Navigate with familiar vim keybindings
+- **Stage selection** — `:stage terrain` for natural terrain, `:stage city` for urban flying
 - **Procedural terrain** — Infinite Perlin noise terrain with 3 biomes (canyon, mountain, plains)
+- **City stage** — Dense urban grid with buildings 15–100m tall, tight 8–15m street gaps
 - **Dynamic chunk loading** — Terrain generates/destroys around player position
 - **Speed-linked FOV** — Field of view widens with speed (80° - 110°)
 - **Motion blur** — Radial blur intensifies with speed
@@ -69,6 +73,7 @@ scripts/
   player.gd            # Flight physics, boost, crash/respawn
   vi_input.gd          # Vi-style input handling
   terrain_manager.gd   # Procedural terrain chunk management
+  city_manager.gd      # Urban city stage chunk management
   hud.gd               # HUD display
   post_process.gd      # Shader uniform management, crash FX
   low_altitude_particles.gd  # Speed/altitude-linked particles
