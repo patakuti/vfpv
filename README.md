@@ -35,6 +35,7 @@ godot --path /path/to/vfpv
 |---|---|
 | `:speed <n>` | Set base speed (20-400) |
 | `:reset` | Respawn at start position |
+| `:auto` | Toggle auto-avoidance mode |
 | `:god` | Toggle god mode (bounce on collision) |
 | `:fpv` | Switch to FPV camera |
 | `:follow` | Switch to follow camera |
@@ -55,6 +56,7 @@ godot --path /path/to/vfpv
 - **Chromatic aberration** — RGB channel split at high speed
 - **Low altitude particles** — Parabolic debris particles when flying low and fast
 - **Crash effects** — Screen flash + camera shake on terrain collision
+- **Auto mode** — `:auto` toggles automatic obstacle avoidance (raycast-based, last-moment, lateral preferred)
 - **God mode** — `:god` toggles invincibility (bounce off terrain instead of crashing)
 - **Racing drone model** — X-frame drone with spinning propellers and neon LED accents
 - **FPV overlay** — Drone frame silhouette visible in FPV view
@@ -75,6 +77,7 @@ scripts/
   terrain_manager.gd   # Procedural terrain chunk management
   city_manager.gd      # Urban city stage chunk management
   hud.gd               # HUD display
+  auto_pilot.gd        # Raycast-based obstacle auto-avoidance
   post_process.gd      # Shader uniform management, crash FX
   low_altitude_particles.gd  # Speed/altitude-linked particles
 shaders/
