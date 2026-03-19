@@ -8,9 +8,21 @@ extends CanvasLayer
 
 var player: CharacterBody3D
 var vi_input: Node
+var debug_mode: bool = false
+var _debug_label: Label
+
 func _ready() -> void:
 	command_line.visible = false
 	command_line.text_submitted.connect(_on_command_submitted)
+	_debug_label = Label.new()
+	_debug_label.anchors_preset = 1  # top-right
+	_debug_label.anchor_left = 1.0
+	_debug_label.anchor_right = 1.0
+	_debug_label.offset_left = -350.0
+	_debug_label.offset_top = 40.0
+	_debug_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_debug_label.visible = false
+	add_child(_debug_label)
 
 func setup(p_player: CharacterBody3D, p_vi_input: Node) -> void:
 	player = p_player
@@ -38,9 +50,33 @@ func _process(_delta: float) -> void:
 		status_parts.append("PAUSED")
 	if player.god_mode:
 		status_parts.append("GOD")
+	if player.auto_pilot and player.auto_pilot.enabled:
+		status_parts.append("AUTO")
 	if player._is_crashed:
 		status_parts.append("CRASHED - :reset to restart")
 	status_label.text = "  ".join(status_parts)
+
+	# Debug display
+	if debug_mode and player.auto_pilot:
+		_debug_label.visible = true
+		var ap = player.auto_pilot
+		var forward := -player.global_transform.basis.z
+		var pitch_deg: float = rad_to_deg(asin(forward.y))
+		var up := player.global_transform.basis.y
+		var tilt_deg: float = rad_to_deg(acos(clamp(up.dot(Vector3.UP), -1.0, 1.0)))
+		var lines: Array[String] = [
+			"=== AUTO DEBUG ===",
+			"pitch: %.1f deg" % pitch_deg,
+			"tilt: %.1f deg" % tilt_deg,
+			"returning_to_level: %s" % str(ap._returning_to_level),
+			"target_yaw: %.2f" % ap._target_yaw,
+			"target_pitch: %.2f" % ap._target_pitch,
+			"auto_yaw: %.2f" % ap.auto_yaw,
+			"auto_pitch: %.2f" % ap.auto_pitch,
+		]
+		_debug_label.text = "\n".join(lines)
+	else:
+		_debug_label.visible = false
 
 	# Toggle command line visibility
 	if vi_input:

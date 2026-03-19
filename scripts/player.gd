@@ -3,6 +3,7 @@ extends CharacterBody3D
 @onready var vi_input: Node = $ViInput
 @onready var fpv_camera: Camera3D = $FPVCamera
 @onready var follow_camera: Camera3D = $FollowCamera
+var auto_pilot: Node3D  # set by main.gd
 
 # Speed
 var speed: float = 80.0
@@ -21,6 +22,7 @@ var is_boosting: bool = false
 # Rotation rates (degrees/sec)
 const YAW_RATE: float = 90.0
 const PITCH_RATE: float = 60.0
+const AUTO_RATE_MULTIPLIER: float = 4.0
 
 # Physics
 const GRAVITY: float = 2.0
@@ -78,9 +80,20 @@ func _physics_process(delta: float) -> void:
 
 	elapsed_time += delta
 
-	# Rotation
-	var yaw_delta = -vi_input.yaw_input * deg_to_rad(YAW_RATE) * delta
-	var pitch_delta = vi_input.pitch_input * deg_to_rad(PITCH_RATE) * delta
+	# Rotation: manual input takes priority, otherwise use auto_pilot
+	var yaw_in: float = vi_input.yaw_input
+	var pitch_in: float = vi_input.pitch_input
+	var yaw_rate: float = YAW_RATE
+	var pitch_rate: float = PITCH_RATE
+	if auto_pilot and auto_pilot.enabled:
+		if yaw_in == 0.0 and auto_pilot.auto_yaw != 0.0:
+			yaw_in = auto_pilot.auto_yaw
+			yaw_rate = YAW_RATE * AUTO_RATE_MULTIPLIER
+		if pitch_in == 0.0 and auto_pilot.auto_pitch != 0.0:
+			pitch_in = auto_pilot.auto_pitch
+			pitch_rate = PITCH_RATE * AUTO_RATE_MULTIPLIER
+	var yaw_delta = -yaw_in * deg_to_rad(yaw_rate) * delta
+	var pitch_delta = pitch_in * deg_to_rad(pitch_rate) * delta
 	rotate_y(yaw_delta)
 	rotate_object_local(Vector3.RIGHT, pitch_delta)
 
@@ -384,5 +397,12 @@ func _on_command_submitted(command: String) -> void:
 		"stage":
 			if parts.size() >= 2 and main:
 				main.switch_stage(parts[1])
+		"auto":
+			if auto_pilot:
+				auto_pilot.enabled = not auto_pilot.enabled
+		"debug":
+			var hud = get_node("/root/Main/HUD")
+			if hud:
+				hud.debug_mode = not hud.debug_mode
 		"quit", "q":
 			get_tree().quit()

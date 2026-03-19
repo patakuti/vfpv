@@ -11,6 +11,9 @@ func _ready() -> void:
 	post_process.setup(player)
 	player.post_process = post_process
 	player.main = self
+	var auto_pilot = $Player/AutoPilot
+	auto_pilot.setup(player)
+	player.auto_pilot = auto_pilot
 
 func switch_stage(stage_name: String) -> void:
 	var terrain = $TerrainManager
