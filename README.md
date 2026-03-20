@@ -60,6 +60,7 @@ godot --path /path/to/vfpv
 - **God mode** — `:god` toggles invincibility (bounce off terrain instead of crashing)
 - **Racing drone model** — X-frame drone with spinning propellers and neon LED accents
 - **FPV overlay** — Drone frame silhouette visible in FPV view
+- **BGM** — Looping synthwave track with seamless crossfade
 - **Pause** — `p` to pause, auto-pause in command mode
 - **Boost system** — Temporary 2x speed with fuel gauge
 - **HUD** — Speed, time, boost gauge, command line
@@ -80,7 +81,13 @@ scripts/
   auto_pilot.gd        # Raycast-based obstacle auto-avoidance
   post_process.gd      # Shader uniform management, crash FX
   low_altitude_particles.gd  # Speed/altitude-linked particles
+music/
+  bgm.ogg              # BGM: "Future Travel" by Zodik (CC-BY 3.0)
 shaders/
   motion_blur.gdshader
   chromatic_aberration.gdshader
 ```
+
+## Credits
+
+- Music: "Future Travel" by Zodik ([CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/)) — https://opengameart.org/content/zodik-future-travel
