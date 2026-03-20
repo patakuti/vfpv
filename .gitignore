@@ -2,6 +2,13 @@
 .godot/
 *.uid
 
+# Music source/preview files (only bgm.ogg is used)
+music/chaos_factory_*
+music/tech_rave*
+music/thrust_sequence*
+music/zodik_future_travel*
+music/zodik_future_travel*.import
+
 # Project documents (local only)
 01_requirements.md
 02_design.md
