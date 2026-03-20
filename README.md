@@ -20,7 +20,9 @@ godot --path /path/to/vfpv
 | Key | Action |
 |---|---|
 | `h` / `l` | Yaw left / right |
+| `H` / `L` | Sharp yaw left / right (2.5x) |
 | `j` / `k` | Pitch down / up |
+| `J` / `K` | Sharp pitch down / up (3x) |
 | `Space` | Boost (consumes fuel, auto-recovers) |
 | `p` | Pause / unpause |
 | `<digits>g` | Set speed (e.g. `100g` = 100 m/s) |

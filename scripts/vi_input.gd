@@ -13,6 +13,10 @@ var boost_pressed: bool = false
 var _count_digits: String = ""
 var _g_pending: bool = false  # true after first g, waiting for second g
 
+# Sharp turn
+const SHARP_YAW: float = 2.5
+const SHARP_PITCH: float = 3.0
+
 # Dot repeat
 var _last_action: String = ""
 var _replaying: bool = false
@@ -47,18 +51,20 @@ func _process(delta: float) -> void:
 		return
 
 	# Read held keys
+	var is_sharp: bool = Input.is_key_pressed(KEY_SHIFT)
+
 	if Input.is_key_pressed(KEY_H):
-		yaw_input = -1.0
+		yaw_input = -SHARP_YAW if is_sharp else -1.0
 		_last_action = "h"
 	elif Input.is_key_pressed(KEY_L):
-		yaw_input = 1.0
+		yaw_input = SHARP_YAW if is_sharp else 1.0
 		_last_action = "l"
 
 	if Input.is_key_pressed(KEY_J):
-		pitch_input = -1.0
+		pitch_input = -SHARP_PITCH if is_sharp else -1.0
 		_last_action = "j"
 	elif Input.is_key_pressed(KEY_K):
-		pitch_input = 1.0
+		pitch_input = SHARP_PITCH if is_sharp else 1.0
 		_last_action = "k"
 
 	if Input.is_key_pressed(KEY_SPACE):
