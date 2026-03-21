@@ -4,6 +4,7 @@ extends CharacterBody3D
 @onready var fpv_camera: Camera3D = $FPVCamera
 @onready var follow_camera: Camera3D = $FollowCamera
 var auto_pilot: Node3D  # set by main.gd
+var sfx: Node  # set by main.gd
 
 # Speed
 var speed: float = 80.0
@@ -14,9 +15,9 @@ const MAX_SPEED: float = 400.0
 # Boost
 var boost_fuel: float = 100.0
 const BOOST_MAX: float = 100.0
-const BOOST_CONSUME_RATE: float = 30.0
+const BOOST_CONSUME_RATE: float = 15.0
 const BOOST_RECOVERY_RATE: float = 10.0
-const BOOST_MULTIPLIER: float = 2.0
+const BOOST_MULTIPLIER: float = 1.5
 var is_boosting: bool = false
 
 # Rotation rates (degrees/sec)
@@ -52,6 +53,13 @@ var is_fpv: bool = true
 # Drone model
 var _propellers: Array[MeshInstance3D] = []
 const PROP_SPIN_SPEED: float = 25.0
+var drone_pivot: Node3D  # groups all drone meshes for bank roll
+
+# Bank
+const BANK_MAX_ANGLE: float = 30.0  # degrees
+const BANK_SHARP_ANGLE: float = 55.0  # degrees (for sharp turn)
+const BANK_SMOOTHING: float = 8.0  # lerp speed
+var _current_bank: float = 0.0  # current bank angle in degrees
 
 func _ready() -> void:
 	_spawn_position = global_position
@@ -76,6 +84,8 @@ func _physics_process(delta: float) -> void:
 		prop.rotate_y(PROP_SPIN_SPEED * delta)
 
 	if _is_crashed:
+		if sfx:
+			sfx.set_boost_active(false)
 		return
 
 	elapsed_time += delta
@@ -104,6 +114,10 @@ func _physics_process(delta: float) -> void:
 	else:
 		is_boosting = false
 		boost_fuel = min(BOOST_MAX, boost_fuel + BOOST_RECOVERY_RATE * delta)
+
+	# SFX: boost
+	if sfx:
+		sfx.set_boost_active(is_boosting)
 
 	# Speed
 	var current_speed = speed
@@ -137,10 +151,31 @@ func _physics_process(delta: float) -> void:
 	if active_cam:
 		active_cam.fov = lerp(FOV_MIN, FOV_MAX, speed_ratio)
 
+	# Bank
+	var abs_yaw := absf(yaw_in)
+	var target_bank: float = 0.0
+	if abs_yaw > 1.0:
+		# Sharp turn: interpolate between normal max and sharp max
+		var t := clampf((abs_yaw - 1.0) / (vi_input.SHARP_YAW - 1.0), 0.0, 1.0)
+		target_bank = lerp(BANK_MAX_ANGLE, BANK_SHARP_ANGLE, t)
+	elif abs_yaw > 0.0:
+		target_bank = BANK_MAX_ANGLE * abs_yaw
+	target_bank *= -signf(yaw_in)  # bank opposite to turn direction
+	_current_bank = lerp(_current_bank, target_bank, BANK_SMOOTHING * delta)
+
+	# Apply bank: FPV = camera roll, Follow = drone model roll
+	fpv_camera.rotation.z = deg_to_rad(_current_bank)
+	if drone_pivot:
+		drone_pivot.rotation.z = deg_to_rad(_current_bank)
+
 	# Update follow camera position
 	_update_follow_camera()
 
 func _build_drone_model() -> void:
+	drone_pivot = Node3D.new()
+	drone_pivot.name = "DronePivot"
+	add_child(drone_pivot)
+
 	# === Materials ===
 	var carbon_mat := StandardMaterial3D.new()
 	carbon_mat.albedo_color = Color(0.10, 0.10, 0.13)
@@ -226,7 +261,7 @@ func _build_drone_model() -> void:
 		bar.mesh = bar_mesh
 		bar.material_override = carbon_mat
 		bar.rotation.y = deg_to_rad(angle)
-		add_child(bar)
+		drone_pivot.add_child(bar)
 		# Reinforcement rib on top
 		var rib := MeshInstance3D.new()
 		var rib_mesh := BoxMesh.new()
@@ -235,7 +270,7 @@ func _build_drone_model() -> void:
 		rib.material_override = dark_metal
 		rib.position.y = 0.028
 		rib.rotation.y = deg_to_rad(angle)
-		add_child(rib)
+		drone_pivot.add_child(rib)
 
 	# === Motor assemblies at 4 corners ===
 	var motor_positions: Array[Vector3] = [
@@ -268,7 +303,7 @@ func _build_drone_model() -> void:
 		prop.mesh = prop_mesh
 		prop.material_override = prop_mat
 		prop.position = pos + Vector3(0, 0.115, 0)
-		add_child(prop)
+		drone_pivot.add_child(prop)
 		_propellers.append(prop)
 
 		# Prop guard (partial ring, 4 posts)
@@ -300,7 +335,7 @@ func _add_box(size: Vector3, pos: Vector3, mat: StandardMaterial3D) -> MeshInsta
 	mi.mesh = mesh
 	mi.material_override = mat
 	mi.position = pos
-	add_child(mi)
+	drone_pivot.add_child(mi)
 	return mi
 
 func _add_cylinder(top_r: float, bot_r: float, h: float, pos: Vector3, mat: StandardMaterial3D) -> MeshInstance3D:
@@ -312,7 +347,7 @@ func _add_cylinder(top_r: float, bot_r: float, h: float, pos: Vector3, mat: Stan
 	mi.mesh = mesh
 	mi.material_override = mat
 	mi.position = pos
-	add_child(mi)
+	drone_pivot.add_child(mi)
 	return mi
 
 func _update_follow_camera() -> void:
@@ -342,6 +377,8 @@ func _bounce() -> void:
 func _crash() -> void:
 	_is_crashed = true
 	velocity = Vector3.ZERO
+	if sfx:
+		sfx.play_crash()
 	if post_process:
 		post_process.flash()
 		var active_cam = get_viewport().get_camera_3d()

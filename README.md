@@ -57,14 +57,17 @@ godot --path /path/to/vfpv
 - **Motion blur** — Radial blur intensifies with speed
 - **Chromatic aberration** — RGB channel split at high speed
 - **Low altitude particles** — Parabolic debris particles when flying low and fast
-- **Crash effects** — Screen flash + camera shake on terrain collision
+- **Bank** — Camera/drone tilts during turns; deeper bank on sharp turns
+- **Crash effects** — Screen flash + camera shake + crash sound on terrain collision
 - **Auto mode** — `:auto` toggles automatic obstacle avoidance (raycast-based, last-moment, lateral preferred)
 - **God mode** — `:god` toggles invincibility (bounce off terrain instead of crashing)
 - **Racing drone model** — X-frame drone with spinning propellers and neon LED accents
 - **FPV overlay** — Drone frame silhouette visible in FPV view
 - **BGM** — Looping synthwave track with seamless crossfade
 - **Pause** — `p` to pause, auto-pause in command mode
-- **Boost system** — Temporary 2x speed with fuel gauge
+- **Boost system** — Temporary 1.5x speed with fuel gauge and engine sound
+- **Hyperspeed effects** — Speed lines, drone glow, and music pitch up when boosting over 200 m/s
+- **Procedural SFX** — Crash noise and boost engine sweep (generated at runtime)
 - **HUD** — Speed, time, boost gauge, command line
 
 ## Project Structure
@@ -81,13 +84,15 @@ scripts/
   city_manager.gd      # Urban city stage chunk management
   hud.gd               # HUD display
   auto_pilot.gd        # Raycast-based obstacle auto-avoidance
-  post_process.gd      # Shader uniform management, crash FX
+  post_process.gd      # Shader uniform management, crash FX, hyperspeed effects
+  sfx.gd               # Procedural sound effects (crash, boost, wind)
   low_altitude_particles.gd  # Speed/altitude-linked particles
 music/
   bgm.ogg              # BGM: "Future Travel" by Zodik (CC-BY 3.0)
 shaders/
   motion_blur.gdshader
   chromatic_aberration.gdshader
+  speed_lines.gdshader
 ```
 
 ## Credits
