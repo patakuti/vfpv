@@ -7,6 +7,10 @@ func _process(_delta: float) -> void:
 	if not player:
 		return
 
+	if player._is_crashed:
+		emitting = false
+		return
+
 	# Raycast down to estimate altitude
 	var space_state := get_world_3d().direct_space_state
 	var from := player.global_position
