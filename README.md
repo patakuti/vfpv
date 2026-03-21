@@ -2,6 +2,10 @@
 
 Keyboard-only drone FPV low-altitude high-speed flight experience built with Godot Engine 4.
 
+## Motivation
+
+Drone FPV footage looks fun. This project tries to capture something like that feeling with just `h`, `j`, `k`, `l` — familiar keys for vi users. `:god` and `:auto` make it even easier; combine both and it practically flies itself.
+
 ## Requirements
 
 - Godot Engine 4.4+
