@@ -2,12 +2,18 @@ extends CanvasLayer
 
 @onready var blur_rect: ColorRect = $MotionBlurRect
 @onready var aberration_rect: ColorRect = $ChromaticAberrationRect
+@onready var speed_lines_rect: ColorRect = $SpeedLinesRect
 @onready var flash_rect: ColorRect = $FlashRect
 
 var player: CharacterBody3D
+var _bgm: AudioStreamPlayer
+
+const HYPERSPEED_THRESHOLD: float = 200.0
+const MUSIC_PITCH_MAX: float = 1.3
 
 func setup(p_player: CharacterBody3D) -> void:
 	player = p_player
+	_bgm = get_node_or_null("/root/Main/BGM")
 
 func _process(_delta: float) -> void:
 	if not player:
@@ -23,6 +29,20 @@ func _process(_delta: float) -> void:
 		(blur_rect.material as ShaderMaterial).set_shader_parameter("speed_ratio", speed_ratio)
 	if aberration_rect.material:
 		(aberration_rect.material as ShaderMaterial).set_shader_parameter("speed_ratio", speed_ratio)
+
+	# Hyperspeed effects (boost + over 200 m/s, disabled on crash)
+	var hyper_ratio: float = 0.0
+	if not player._is_crashed and player.is_boosting and current_speed > HYPERSPEED_THRESHOLD:
+		hyper_ratio = clamp((current_speed - HYPERSPEED_THRESHOLD) / (player.MAX_SPEED * player.BOOST_MULTIPLIER - HYPERSPEED_THRESHOLD), 0.0, 1.0)
+
+	# Speed lines
+	if speed_lines_rect.material:
+		(speed_lines_rect.material as ShaderMaterial).set_shader_parameter("intensity", hyper_ratio)
+
+	# Music pitch
+	if _bgm:
+		_bgm.pitch_scale = lerp(1.0, MUSIC_PITCH_MAX, hyper_ratio)
+
 
 func flash() -> void:
 	flash_rect.color = Color(1, 1, 1, 0.8)

@@ -14,6 +14,9 @@ func _ready() -> void:
 	var auto_pilot = $Player/AutoPilot
 	auto_pilot.setup(player)
 	player.auto_pilot = auto_pilot
+	var sfx = $SFX
+	sfx.setup(player)
+	player.sfx = sfx
 
 func switch_stage(stage_name: String) -> void:
 	var terrain = $TerrainManager
