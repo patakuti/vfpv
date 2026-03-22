@@ -25,7 +25,7 @@ jobs:
 
       - name: Setup export directories
         run: |
-          mkdir -p build/linux build/windows build/web
+          mkdir -p build/linux build/windows build/Web
 
       - name: Import project
         run: godot --headless --import 2>&1 || true
@@ -37,7 +37,7 @@ jobs:
         run: godot --headless --export-release "Windows Desktop" build/windows/vfpv.exe
 
       - name: Export Web
-        run: godot --headless --export-release "Web" build/web/vfpv.html
+        run: godot --headless --export-release "Web" build/Web/index.html
 
       - name: Package Linux
         run: |
@@ -51,8 +51,8 @@ jobs:
 
       - name: Package Web
         run: |
-          cd build/web
-          zip -r ../../vfpv-web.zip .
+          cd build
+          zip -r ../vfpv-web.zip Web
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
