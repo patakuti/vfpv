@@ -93,7 +93,7 @@ func _handle_normal_key(event: InputEventKey) -> void:
 		return
 
 	# Colon -> command mode (auto-pause)
-	if event.keycode == KEY_SEMICOLON and event.shift_pressed:
+	if event.unicode == 58:  # ':' (colon) — layout-independent
 		mode = Mode.COMMAND
 		if not get_tree().paused:
 			get_tree().paused = true
