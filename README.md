@@ -4,6 +4,8 @@ Keyboard-only drone FPV low-altitude high-speed flight experience built with God
 
 ![demo](docs/demo.gif)
 
+**[Play in browser on itch.io](https://patakuti.itch.io/vfpv)**
+
 ## Motivation
 
 Drone FPV footage looks fun. This project tries to capture something like that feeling with just `h`, `j`, `k`, `l` — familiar keys for vi users. `:god` and `:auto` make it even easier; combine both and it practically flies itself.
