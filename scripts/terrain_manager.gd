@@ -96,7 +96,12 @@ func _create_chunk(coord: Vector2i) -> void:
 	var heights := PackedFloat32Array()
 	heights.resize((MESH_RESOLUTION + 1) * (MESH_RESOLUTION + 1))
 
-	# Calculate heights
+	# Pre-compute per-vertex colors
+	var vert_count := (MESH_RESOLUTION + 1) * (MESH_RESOLUTION + 1)
+	var colors := PackedColorArray()
+	colors.resize(vert_count)
+
+	# Calculate heights and colors per vertex
 	for z in range(MESH_RESOLUTION + 1):
 		for x in range(MESH_RESOLUTION + 1):
 			var world_x := coord.x * CHUNK_SIZE + x * step
@@ -112,7 +117,38 @@ func _create_chunk(coord: Vector2i) -> void:
 			else:
 				h = h * 40.0
 
-			heights[z * (MESH_RESOLUTION + 1) + x] = h
+			var idx := z * (MESH_RESOLUTION + 1) + x
+			heights[idx] = h
+
+			# Per-vertex biome color with smooth blending
+			var canyon_color := Color(0.9, 0.5, 0.15).lerp(
+				Color(0.7, 0.2, 0.1), clamp(-h / 10.0, 0.0, 1.0))
+			var mountain_color := Color(0.4, 0.3, 0.7).lerp(
+				Color(0.9, 0.9, 1.0), clamp((h - 30.0) / 40.0, 0.0, 0.6))
+			var normal_color := Color(0.0, 0.3, 0.05).lerp(
+				Color(0.4, 0.85, 0.15), clamp(h / 25.0, 0.0, 1.0))
+
+			var color: Color
+			if biome_val < -0.3:
+				color = canyon_color
+			elif biome_val < -0.1:
+				# Canyon-to-normal transition
+				var t := (biome_val - (-0.3)) / 0.2
+				color = canyon_color.lerp(normal_color, t)
+			elif biome_val < 0.1:
+				color = normal_color
+			elif biome_val < 0.3:
+				# Normal-to-mountain transition
+				var t := (biome_val - 0.1) / 0.2
+				color = normal_color.lerp(mountain_color, t)
+			else:
+				color = mountain_color
+
+			# High altitude snow caps
+			if h > 50.0:
+				color = color.lerp(Color(1.0, 1.0, 1.0), clamp((h - 50.0) / 25.0, 0.0, 0.7))
+
+			colors[idx] = color
 
 	# Generate triangles
 	for z in range(MESH_RESOLUTION):
@@ -137,51 +173,32 @@ func _create_chunk(coord: Vector2i) -> void:
 			var v01 := Vector3(x0, h01, z1)
 			var v11 := Vector3(x1, h11, z1)
 
-			# Color by biome
-			var world_cx := coord.x * CHUNK_SIZE + x0 + step * 0.5
-			var world_cz := coord.y * CHUNK_SIZE + z0 + step * 0.5
-			var bv := _biome_noise.get_noise_2d(world_cx, world_cz)
-
-			var avg_h := (h00 + h10 + h01 + h11) * 0.25
-			var color: Color
-			if bv < -0.2:
-				# Canyon: warm orange to deep red
-				color = Color(0.9, 0.5, 0.15)
-				color = color.lerp(Color(0.7, 0.2, 0.1), clamp(-avg_h / 10.0, 0.0, 1.0))
-			elif bv > 0.2:
-				# Mountain: deep purple-blue rock
-				color = Color(0.4, 0.3, 0.7)
-				color = color.lerp(Color(0.9, 0.9, 1.0), clamp((avg_h - 30.0) / 40.0, 0.0, 0.6))
-			else:
-				# Normal: dark green valleys to bright yellow-green peaks
-				color = Color(0.0, 0.3, 0.05)
-				color = color.lerp(Color(0.4, 0.85, 0.15), clamp(avg_h / 25.0, 0.0, 1.0))
-
-			# High altitude snow caps
-			if avg_h > 50.0:
-				color = color.lerp(Color(1.0, 1.0, 1.0), clamp((avg_h - 50.0) / 25.0, 0.0, 0.7))
+			var c00 := colors[idx00]
+			var c10 := colors[idx10]
+			var c01 := colors[idx01]
+			var c11 := colors[idx11]
 
 			# Triangle 1
 			var n1 := (v10 - v00).cross(v01 - v00).normalized()
-			st.set_color(color)
+			st.set_color(c00)
 			st.set_normal(n1)
 			st.add_vertex(v00)
-			st.set_color(color)
+			st.set_color(c10)
 			st.set_normal(n1)
 			st.add_vertex(v10)
-			st.set_color(color)
+			st.set_color(c01)
 			st.set_normal(n1)
 			st.add_vertex(v01)
 
 			# Triangle 2
 			var n2 := (v01 - v11).cross(v10 - v11).normalized()
-			st.set_color(color)
+			st.set_color(c10)
 			st.set_normal(n2)
 			st.add_vertex(v10)
-			st.set_color(color)
+			st.set_color(c11)
 			st.set_normal(n2)
 			st.add_vertex(v11)
-			st.set_color(color)
+			st.set_color(c01)
 			st.set_normal(n2)
 			st.add_vertex(v01)
 
