@@ -2,6 +2,13 @@
 .godot/
 *.uid
 
+# Export binaries
+*.x86_64
+*.exe
+*.pck
+Web/
+export_presets.cfg
+
 # Project documents (local only)
 01_requirements.md
 02_design.md
