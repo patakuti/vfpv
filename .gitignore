@@ -8,7 +8,7 @@
 *.exe
 *.pck
 Web/
-export_presets.cfg
+
 
 # Project documents (local only)
 01_requirements.md
