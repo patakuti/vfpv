@@ -3,9 +3,26 @@ extends Node3D
 const CHUNK_SIZE: float = 132.0   # 3 slots × 44m
 const SLOT_SIZE: float = 44.0
 const SLOTS_PER_CHUNK: int = 3
-const RENDER_DISTANCE: int = 3
-const CHUNKS_PER_FRAME: int = 2
 const EMPTY_LOT_CHANCE: float = 0.30
+
+# Quality presets: [render_distance, chunks_per_frame]
+const QUALITY_PRESETS: Dictionary = {
+	"low": [2, 1],
+	"mid": [3, 2],
+	"high": [4, 2],
+}
+const AUTO_RENDER_MIN: int = 2
+const AUTO_RENDER_MAX: int = 4
+const AUTO_FPS_LOW: float = 30.0
+const AUTO_FPS_HIGH: float = 50.0
+const AUTO_FPS_WINDOW: float = 3.0
+
+var render_distance: int = 3
+var chunks_per_frame: int = 2
+var quality_mode: String = "auto"
+
+var _fps_samples: Array[float] = []
+var _fps_timer: float = 0.0
 
 var _active_chunks: Dictionary = {}
 var _player: Node3D
@@ -204,6 +221,35 @@ func activate(player: Node3D) -> void:
 	_player = player
 	_enabled = true
 
+func set_quality(mode: String) -> void:
+	quality_mode = mode
+	_fps_samples.clear()
+	_fps_timer = 0.0
+	if mode in QUALITY_PRESETS:
+		var preset: Array = QUALITY_PRESETS[mode]
+		render_distance = preset[0]
+		chunks_per_frame = preset[1]
+	elif mode == "auto":
+		chunks_per_frame = 2
+
+func _update_auto_quality(delta: float) -> void:
+	if quality_mode != "auto" or not _enabled:
+		return
+	_fps_timer += delta
+	_fps_samples.append(Engine.get_frames_per_second())
+	if _fps_timer < AUTO_FPS_WINDOW:
+		return
+	var total: float = 0.0
+	for s in _fps_samples:
+		total += s
+	var avg_fps: float = total / _fps_samples.size()
+	_fps_samples.clear()
+	_fps_timer = 0.0
+	if avg_fps < AUTO_FPS_LOW and render_distance > AUTO_RENDER_MIN:
+		render_distance -= 1
+	elif avg_fps > AUTO_FPS_HIGH and render_distance < AUTO_RENDER_MAX:
+		render_distance += 1
+
 func deactivate() -> void:
 	_enabled = false
 	_player = null
@@ -212,9 +258,11 @@ func deactivate() -> void:
 	_active_chunks.clear()
 	_pending_chunks.clear()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _enabled or not _player:
 		return
+
+	_update_auto_quality(delta)
 
 	var player_chunk := Vector2i(
 		floori(_player.global_position.x / CHUNK_SIZE),
@@ -222,8 +270,8 @@ func _process(_delta: float) -> void:
 	)
 
 	_pending_chunks.clear()
-	for x in range(player_chunk.x - RENDER_DISTANCE, player_chunk.x + RENDER_DISTANCE + 1):
-		for z in range(player_chunk.y - RENDER_DISTANCE, player_chunk.y + RENDER_DISTANCE + 1):
+	for x in range(player_chunk.x - render_distance, player_chunk.x + render_distance + 1):
+		for z in range(player_chunk.y - render_distance, player_chunk.y + render_distance + 1):
 			var key := Vector2i(x, z)
 			if not _active_chunks.has(key):
 				_pending_chunks.append(key)
@@ -234,14 +282,14 @@ func _process(_delta: float) -> void:
 
 	var created := 0
 	for key in _pending_chunks:
-		if created >= CHUNKS_PER_FRAME:
+		if created >= chunks_per_frame:
 			break
 		_create_chunk(key)
 		created += 1
 
 	var to_remove: Array[Vector2i] = []
 	for key in _active_chunks:
-		if abs(key.x - player_chunk.x) > RENDER_DISTANCE + 1 or abs(key.y - player_chunk.y) > RENDER_DISTANCE + 1:
+		if abs(key.x - player_chunk.x) > render_distance + 1 or abs(key.y - player_chunk.y) > render_distance + 1:
 			to_remove.append(key)
 	for key in to_remove:
 		_active_chunks[key].queue_free()

@@ -57,23 +57,32 @@ func _process(_delta: float) -> void:
 	status_label.text = "  ".join(status_parts)
 
 	# Debug display
-	if debug_mode and player.auto_pilot:
+	if debug_mode:
 		_debug_label.visible = true
-		var ap = player.auto_pilot
-		var forward := -player.global_transform.basis.z
-		var pitch_deg: float = rad_to_deg(asin(forward.y))
-		var up := player.global_transform.basis.y
-		var tilt_deg: float = rad_to_deg(acos(clamp(up.dot(Vector3.UP), -1.0, 1.0)))
-		var lines: Array[String] = [
-			"=== AUTO DEBUG ===",
-			"pitch: %.1f deg" % pitch_deg,
-			"tilt: %.1f deg" % tilt_deg,
-			"returning_to_level: %s" % str(ap._returning_to_level),
-			"target_yaw: %.2f" % ap._target_yaw,
-			"target_pitch: %.2f" % ap._target_pitch,
-			"auto_yaw: %.2f" % ap.auto_yaw,
-			"auto_pitch: %.2f" % ap.auto_pitch,
-		]
+		var lines: Array[String] = []
+		# Quality info
+		var tm = get_node_or_null("/root/Main/TerrainManager")
+		if tm:
+			lines.append("=== QUALITY ===")
+			lines.append("mode: %s" % tm.quality_mode)
+			lines.append("render_dist: %d" % tm.render_distance)
+			lines.append("mesh_res: %d" % tm.mesh_resolution)
+			lines.append("fps: %d" % Engine.get_frames_per_second())
+		# Auto pilot info
+		if player.auto_pilot:
+			var ap = player.auto_pilot
+			var forward := -player.global_transform.basis.z
+			var pitch_deg: float = rad_to_deg(asin(forward.y))
+			var up := player.global_transform.basis.y
+			var tilt_deg: float = rad_to_deg(acos(clamp(up.dot(Vector3.UP), -1.0, 1.0)))
+			lines.append("=== AUTO ===")
+			lines.append("pitch: %.1f deg" % pitch_deg)
+			lines.append("tilt: %.1f deg" % tilt_deg)
+			lines.append("returning_to_level: %s" % str(ap._returning_to_level))
+			lines.append("target_yaw: %.2f" % ap._target_yaw)
+			lines.append("target_pitch: %.2f" % ap._target_pitch)
+			lines.append("auto_yaw: %.2f" % ap.auto_yaw)
+			lines.append("auto_pitch: %.2f" % ap.auto_pitch)
 		_debug_label.text = "\n".join(lines)
 	else:
 		_debug_label.visible = false
