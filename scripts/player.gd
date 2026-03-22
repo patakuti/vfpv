@@ -437,6 +437,9 @@ func _on_command_submitted(command: String) -> void:
 		"auto":
 			if auto_pilot:
 				auto_pilot.enabled = not auto_pilot.enabled
+		"quality":
+			if parts.size() >= 2 and main:
+				main.set_quality(parts[1])
 		"debug":
 			var hud = get_node("/root/Main/HUD")
 			if hud:

@@ -47,6 +47,7 @@ godot --path /path/to/vfpv
 | `:follow` | Switch to follow camera |
 | `:stage terrain` | Switch to natural terrain stage |
 | `:stage city` | Switch to urban city stage |
+| `:quality low/mid/high/auto` | Set rendering quality (default: auto) |
 | `:quit` or `:q` | Quit game |
 | `Escape` | Cancel and return to normal mode |
 
@@ -72,7 +73,8 @@ godot --path /path/to/vfpv
 - **Boost system** — Temporary 1.5x speed with fuel gauge and engine sound
 - **Hyperspeed effects** — Speed lines, drone glow, and music pitch up when boosting over 200 m/s
 - **Procedural SFX** — Crash noise and boost engine sweep (generated at runtime)
-- **HUD** — Speed, time, boost gauge, command line
+- **Quality settings** — `:quality low/mid/high/auto` adjusts render distance and mesh resolution; auto mode adapts to FPS
+- **HUD** — Speed, time, boost gauge, quality level, command line
 
 ## Project Structure
 

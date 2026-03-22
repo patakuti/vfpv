@@ -18,6 +18,12 @@ func _ready() -> void:
 	sfx.setup(player)
 	player.sfx = sfx
 
+func set_quality(level: String) -> void:
+	if level not in ["low", "mid", "high", "auto"]:
+		return
+	$TerrainManager.set_quality(level)
+	$CityManager.set_quality(level)
+
 func switch_stage(stage_name: String) -> void:
 	var terrain = $TerrainManager
 	var city = $CityManager

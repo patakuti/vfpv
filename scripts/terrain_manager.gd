@@ -1,9 +1,27 @@
 extends Node3D
 
 const CHUNK_SIZE: float = 64.0
-const RENDER_DISTANCE: int = 4
-const MESH_RESOLUTION: int = 32  # vertices per side
-const CHUNKS_PER_FRAME: int = 2  # max chunks to generate per frame
+
+# Quality presets: [render_distance, mesh_resolution, chunks_per_frame]
+const QUALITY_PRESETS: Dictionary = {
+	"low": [2, 16, 1],
+	"mid": [3, 24, 2],
+	"high": [4, 32, 2],
+}
+const AUTO_RENDER_MIN: int = 2
+const AUTO_RENDER_MAX: int = 4
+const AUTO_FPS_LOW: float = 30.0
+const AUTO_FPS_HIGH: float = 50.0
+const AUTO_FPS_WINDOW: float = 3.0  # seconds to average
+
+var render_distance: int = 4
+var mesh_resolution: int = 32
+var chunks_per_frame: int = 2
+var quality_mode: String = "auto"
+
+# FPS tracking for auto mode
+var _fps_samples: Array[float] = []
+var _fps_timer: float = 0.0
 
 var _noise: FastNoiseLite
 var _biome_noise: FastNoiseLite
@@ -35,6 +53,49 @@ func setup(player: Node3D) -> void:
 	_player = player
 	_enabled = true
 
+func set_quality(mode: String) -> void:
+	quality_mode = mode
+	_fps_samples.clear()
+	_fps_timer = 0.0
+	if mode in QUALITY_PRESETS:
+		var preset: Array = QUALITY_PRESETS[mode]
+		var new_resolution: int = preset[1]
+		var need_rebuild: bool = (new_resolution != mesh_resolution)
+		render_distance = preset[0]
+		mesh_resolution = new_resolution
+		chunks_per_frame = preset[2]
+		if need_rebuild and _enabled:
+			_rebuild_all_chunks()
+	elif mode == "auto":
+		mesh_resolution = 32
+		chunks_per_frame = 2
+		# render_distance stays current, will be adjusted by fps
+
+func _rebuild_all_chunks() -> void:
+	var keys: Array = _active_chunks.keys().duplicate()
+	for key in keys:
+		_active_chunks[key].queue_free()
+		_active_chunks.erase(key)
+
+func _update_auto_quality(delta: float) -> void:
+	if quality_mode != "auto" or not _enabled:
+		return
+	_fps_timer += delta
+	_fps_samples.append(Engine.get_frames_per_second())
+	if _fps_timer < AUTO_FPS_WINDOW:
+		return
+	# Calculate average fps
+	var total: float = 0.0
+	for s in _fps_samples:
+		total += s
+	var avg_fps: float = total / _fps_samples.size()
+	_fps_samples.clear()
+	_fps_timer = 0.0
+	if avg_fps < AUTO_FPS_LOW and render_distance > AUTO_RENDER_MIN:
+		render_distance -= 1
+	elif avg_fps > AUTO_FPS_HIGH and render_distance < AUTO_RENDER_MAX:
+		render_distance += 1
+
 func deactivate() -> void:
 	_enabled = false
 	_player = null
@@ -43,9 +104,11 @@ func deactivate() -> void:
 	_active_chunks.clear()
 	_pending_chunks.clear()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _enabled or not _player:
 		return
+
+	_update_auto_quality(delta)
 
 	var player_chunk := Vector2i(
 		floori(_player.global_position.x / CHUNK_SIZE),
@@ -54,8 +117,8 @@ func _process(_delta: float) -> void:
 
 	# Queue missing chunks (sorted by distance to player)
 	_pending_chunks.clear()
-	for x in range(player_chunk.x - RENDER_DISTANCE, player_chunk.x + RENDER_DISTANCE + 1):
-		for z in range(player_chunk.y - RENDER_DISTANCE, player_chunk.y + RENDER_DISTANCE + 1):
+	for x in range(player_chunk.x - render_distance, player_chunk.x + render_distance + 1):
+		for z in range(player_chunk.y - render_distance, player_chunk.y + render_distance + 1):
 			var key := Vector2i(x, z)
 			if not _active_chunks.has(key):
 				_pending_chunks.append(key)
@@ -70,7 +133,7 @@ func _process(_delta: float) -> void:
 	# Generate only a few chunks per frame
 	var created := 0
 	for key in _pending_chunks:
-		if created >= CHUNKS_PER_FRAME:
+		if created >= chunks_per_frame:
 			break
 		_create_chunk(key)
 		created += 1
@@ -78,7 +141,7 @@ func _process(_delta: float) -> void:
 	# Remove chunks out of range
 	var to_remove: Array[Vector2i] = []
 	for key in _active_chunks:
-		if abs(key.x - player_chunk.x) > RENDER_DISTANCE + 1 or abs(key.y - player_chunk.y) > RENDER_DISTANCE + 1:
+		if abs(key.x - player_chunk.x) > render_distance + 1 or abs(key.y - player_chunk.y) > render_distance + 1:
 			to_remove.append(key)
 
 	for key in to_remove:
@@ -92,18 +155,18 @@ func _create_chunk(coord: Vector2i) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	var step := CHUNK_SIZE / MESH_RESOLUTION
+	var step := CHUNK_SIZE / mesh_resolution
 	var heights := PackedFloat32Array()
-	heights.resize((MESH_RESOLUTION + 1) * (MESH_RESOLUTION + 1))
+	heights.resize((mesh_resolution + 1) * (mesh_resolution + 1))
 
 	# Pre-compute per-vertex colors
-	var vert_count := (MESH_RESOLUTION + 1) * (MESH_RESOLUTION + 1)
+	var vert_count := (mesh_resolution + 1) * (mesh_resolution + 1)
 	var colors := PackedColorArray()
 	colors.resize(vert_count)
 
 	# Calculate heights and colors per vertex
-	for z in range(MESH_RESOLUTION + 1):
-		for x in range(MESH_RESOLUTION + 1):
+	for z in range(mesh_resolution + 1):
+		for x in range(mesh_resolution + 1):
 			var world_x := coord.x * CHUNK_SIZE + x * step
 			var world_z := coord.y * CHUNK_SIZE + z * step
 
@@ -117,7 +180,7 @@ func _create_chunk(coord: Vector2i) -> void:
 			else:
 				h = h * 40.0
 
-			var idx := z * (MESH_RESOLUTION + 1) + x
+			var idx := z * (mesh_resolution + 1) + x
 			heights[idx] = h
 
 			# Per-vertex biome color with smooth blending
@@ -151,11 +214,11 @@ func _create_chunk(coord: Vector2i) -> void:
 			colors[idx] = color
 
 	# Generate triangles
-	for z in range(MESH_RESOLUTION):
-		for x in range(MESH_RESOLUTION):
-			var idx00 := z * (MESH_RESOLUTION + 1) + x
+	for z in range(mesh_resolution):
+		for x in range(mesh_resolution):
+			var idx00 := z * (mesh_resolution + 1) + x
 			var idx10 := idx00 + 1
-			var idx01 := idx00 + (MESH_RESOLUTION + 1)
+			var idx01 := idx00 + (mesh_resolution + 1)
 			var idx11 := idx01 + 1
 
 			var x0 := x * step
@@ -212,7 +275,7 @@ func _create_chunk(coord: Vector2i) -> void:
 	# Collision using HeightMapShape3D
 	var col_shape := CollisionShape3D.new()
 	var hmap := HeightMapShape3D.new()
-	var map_size := MESH_RESOLUTION + 1
+	var map_size := mesh_resolution + 1
 	hmap.map_width = map_size
 	hmap.map_depth = map_size
 	hmap.map_data = heights
