@@ -1,6 +1,8 @@
 extends Node3D
 
 func _ready() -> void:
+	_adjust_light_for_renderer()
+
 	var player = $Player
 	var vi_input = $Player/ViInput
 	var hud = $HUD
@@ -17,6 +19,13 @@ func _ready() -> void:
 	var sfx = $SFX
 	sfx.setup(player)
 	player.sfx = sfx
+
+func _adjust_light_for_renderer() -> void:
+	# Workaround for godotengine/godot#90259:
+	# Compatibility renderer makes shadowed lights overbright due to
+	# sRGB multipass rendering. Disable shadows to avoid white surfaces.
+	if RenderingServer.get_rendering_device() == null:
+		$DirectionalLight3D.shadow_enabled = false
 
 func set_quality(level: String) -> void:
 	if level not in ["low", "mid", "high", "auto"]:
