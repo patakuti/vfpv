@@ -1,7 +1,6 @@
 # Godot generated
 .godot/
 *.uid
-*.import
 
 # Export binaries
 *.x86_64
