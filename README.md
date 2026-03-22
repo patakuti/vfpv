@@ -123,6 +123,7 @@ shaders/
 ## Known Issues
 
 - **Web (Compatibility renderer): Shadows disabled** — Due to a Godot engine bug ([godotengine/godot#90259](https://github.com/godotengine/godot/issues/90259)), shadowed lights cause surfaces to appear overbright/white on the Compatibility renderer (WebGL). Shadows are automatically disabled when running on this renderer.
+- **Web: BGM does not play until first user input** — Browser autoplay policy blocks audio until a user interaction (key press, click, etc.). BGM will start automatically after the first input.
 
 ## Credits
 
