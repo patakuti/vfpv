@@ -2,6 +2,8 @@
 
 Keyboard-only drone FPV low-altitude high-speed flight experience built with Godot Engine 4.
 
+![demo](docs/demo.gif)
+
 ## Motivation
 
 Drone FPV footage looks fun. This project tries to capture something like that feeling with just `h`, `j`, `k`, `l` — familiar keys for vi users. `:god` and `:auto` make it even easier; combine both and it practically flies itself.
@@ -13,9 +15,26 @@ Drone FPV footage looks fun. This project tries to capture something like that f
 
 ## How to Run
 
+### Linux
+
 ```bash
-godot --path /path/to/vfpv
+chmod +x vfpv.x86_64
+./vfpv.x86_64
 ```
+
+### Windows
+
+Run `vfpv.exe`.
+
+### Web
+
+Open `index.html` via a local HTTP server:
+
+```bash
+cd Web && python3 -m http.server 8000
+```
+
+Then open `http://localhost:8000` in your browser.
 
 ## Controls
 
