@@ -1,0 +1,55 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.6
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup export directories
+        run: |
+          mkdir -p build/linux build/windows build/web
+
+      - name: Import project
+        run: godot --headless --import 2>&1 || true
+
+      - name: Export Linux
+        run: godot --headless --export-release "Linux" build/linux/vfpv.x86_64
+
+      - name: Export Windows
+        run: godot --headless --export-release "Windows Desktop" build/windows/vfpv.exe
+
+      - name: Export Web
+        run: godot --headless --export-release "Web" build/web/vfpv.html
+
+      - name: Package Linux
+        run: |
+          cd build/linux
+          zip ../../vfpv-linux-x86_64.zip vfpv.x86_64
+
+      - name: Package Windows
+        run: |
+          cd build/windows
+          zip ../../vfpv-windows-x86_64.zip vfpv.exe
+
+      - name: Package Web
+        run: |
+          cd build/web
+          zip -r ../../vfpv-web.zip .
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            vfpv-linux-x86_64.zip
+            vfpv-windows-x86_64.zip
+            vfpv-web.zip
+          generate_release_notes: true
