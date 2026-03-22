@@ -14,6 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup export templates
+        run: |
+          mkdir -p /github/home/.local/share/godot/export_templates/
+          ln -s /root/.local/share/godot/export_templates/4.6.stable \
+                /github/home/.local/share/godot/export_templates/4.6.stable
+
       - name: Setup export directories
         run: |
           mkdir -p build/linux build/windows build/web
