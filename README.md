@@ -9,7 +9,7 @@ Drone FPV footage looks fun. This project tries to capture something like that f
 ## Requirements
 
 - Godot Engine 4.4+
-- Linux (Ubuntu)
+- Linux, Windows, or Web browser
 
 ## How to Run
 
