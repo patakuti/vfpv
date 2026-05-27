@@ -410,6 +410,10 @@ func respawn() -> void:
 	speed = base_speed
 	boost_fuel = BOOST_MAX
 
+func set_spawn_y(y: float) -> void:
+	global_position.y = y
+	_spawn_position.y = y
+
 func _activate_camera(cam: Camera3D) -> void:
 	fpv_camera.current = (cam == fpv_camera)
 	follow_camera.current = (cam == follow_camera)

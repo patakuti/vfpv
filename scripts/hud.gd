@@ -72,7 +72,7 @@ func _process(_delta: float) -> void:
 
 	# Status indicator
 	var status_parts: Array[String] = []
-	var in_command_mode := (not _is_android) and vi_input and vi_input.mode == vi_input.Mode.COMMAND
+	var in_command_mode: bool = (not _is_android) and vi_input != null and vi_input.mode == vi_input.Mode.COMMAND
 	if get_tree().paused and not in_command_mode:
 		status_parts.append("PAUSED")
 	if player.god_mode:
