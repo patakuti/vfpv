@@ -6,6 +6,9 @@ extends CharacterBody3D
 var auto_pilot: Node3D  # set by main.gd
 var sfx: Node  # set by main.gd
 
+var _input_handler: Node   # vi_input (desktop) or android_input (Android)
+var _is_android: bool = false
+
 # Speed
 var speed: float = 80.0
 var base_speed: float = 80.0
@@ -65,12 +68,19 @@ func _ready() -> void:
 	_spawn_position = global_position
 	_spawn_rotation = rotation
 
-	# Connect vi_input signals
-	vi_input.set_max_speed.connect(_on_set_max_speed)
-	vi_input.set_min_speed.connect(_on_set_min_speed)
-	vi_input.command_submitted.connect(_on_command_submitted)
-	vi_input.toggle_pause.connect(_on_toggle_pause)
-	vi_input.set_speed.connect(_on_set_speed)
+	_is_android = (OS.get_name() == "Android")
+	if _is_android:
+		var ai := preload("res://scripts/android_input.gd").new()
+		ai.name = "AndroidInput"
+		add_child(ai)
+		_input_handler = ai
+	else:
+		_input_handler = vi_input
+		vi_input.set_max_speed.connect(_on_set_max_speed)
+		vi_input.set_min_speed.connect(_on_set_min_speed)
+		vi_input.command_submitted.connect(_on_command_submitted)
+		vi_input.toggle_pause.connect(_on_toggle_pause)
+		vi_input.set_speed.connect(_on_set_speed)
 
 	# Build drone model
 	_build_drone_model()
@@ -90,46 +100,54 @@ func _physics_process(delta: float) -> void:
 
 	elapsed_time += delta
 
-	# Rotation: manual input takes priority, otherwise use auto_pilot
-	var yaw_in: float = vi_input.yaw_input
-	var pitch_in: float = vi_input.pitch_input
-	var yaw_rate: float = YAW_RATE
-	var pitch_rate: float = PITCH_RATE
-	if auto_pilot and auto_pilot.enabled:
-		if yaw_in == 0.0 and auto_pilot.auto_yaw != 0.0:
-			yaw_in = auto_pilot.auto_yaw
-			yaw_rate = YAW_RATE * AUTO_RATE_MULTIPLIER
-		if pitch_in == 0.0 and auto_pilot.auto_pitch != 0.0:
-			pitch_in = auto_pilot.auto_pitch
-			pitch_rate = PITCH_RATE * AUTO_RATE_MULTIPLIER
-	var yaw_delta = -yaw_in * deg_to_rad(yaw_rate) * delta
-	var pitch_delta = pitch_in * deg_to_rad(pitch_rate) * delta
-	rotate_y(yaw_delta)
-	rotate_object_local(Vector3.RIGHT, pitch_delta)
+	var yaw_in: float = _input_handler.yaw_input
+	var current_speed: float
 
-	# Boost
-	if vi_input.boost_pressed and boost_fuel > 0.0:
-		is_boosting = true
-		boost_fuel = max(0.0, boost_fuel - BOOST_CONSUME_RATE * delta)
+	if _is_android:
+		# --- Android: Altitude Hold model ---
+		# Yaw rotation only (no pitch)
+		rotate_y(-yaw_in * deg_to_rad(YAW_RATE) * delta)
+
+		speed = _input_handler.speed_target
+		current_speed = speed
+
+		# Horizontal movement (ignore pitch component of basis)
+		var horiz_fwd := Vector3(-global_transform.basis.z.x, 0.0, -global_transform.basis.z.z)
+		if horiz_fwd.length_squared() > 0.001:
+			horiz_fwd = horiz_fwd.normalized()
+		velocity = horiz_fwd * current_speed
+		velocity.y = _input_handler.altitude_delta
 	else:
-		is_boosting = false
-		boost_fuel = min(BOOST_MAX, boost_fuel + BOOST_RECOVERY_RATE * delta)
+		# --- Desktop: original flight model ---
+		var pitch_in: float = _input_handler.pitch_input
+		var yaw_rate: float = YAW_RATE
+		var pitch_rate: float = PITCH_RATE
+		if auto_pilot and auto_pilot.enabled:
+			if yaw_in == 0.0 and auto_pilot.auto_yaw != 0.0:
+				yaw_in = auto_pilot.auto_yaw
+				yaw_rate = YAW_RATE * AUTO_RATE_MULTIPLIER
+			if pitch_in == 0.0 and auto_pilot.auto_pitch != 0.0:
+				pitch_in = auto_pilot.auto_pitch
+				pitch_rate = PITCH_RATE * AUTO_RATE_MULTIPLIER
+		rotate_y(-yaw_in * deg_to_rad(yaw_rate) * delta)
+		rotate_object_local(Vector3.RIGHT, pitch_in * deg_to_rad(pitch_rate) * delta)
 
-	# SFX: boost
-	if sfx:
-		sfx.set_boost_active(is_boosting)
+		# Boost
+		if _input_handler.boost_pressed and boost_fuel > 0.0:
+			is_boosting = true
+			boost_fuel = max(0.0, boost_fuel - BOOST_CONSUME_RATE * delta)
+		else:
+			is_boosting = false
+			boost_fuel = min(BOOST_MAX, boost_fuel + BOOST_RECOVERY_RATE * delta)
+		if sfx:
+			sfx.set_boost_active(is_boosting)
 
-	# Speed
-	var current_speed = speed
-	if is_boosting:
-		current_speed *= BOOST_MULTIPLIER
+		current_speed = speed
+		if is_boosting:
+			current_speed *= BOOST_MULTIPLIER
 
-	# Forward movement
-	var forward = -global_transform.basis.z
-	velocity = forward * current_speed
-
-	# Gravity
-	velocity.y -= GRAVITY * delta
+		velocity = -global_transform.basis.z * current_speed
+		velocity.y -= GRAVITY * delta
 
 	# Move
 	move_and_slide()
@@ -155,12 +173,11 @@ func _physics_process(delta: float) -> void:
 	var abs_yaw := absf(yaw_in)
 	var target_bank: float = 0.0
 	if abs_yaw > 1.0:
-		# Sharp turn: interpolate between normal max and sharp max
-		var t := clampf((abs_yaw - 1.0) / (vi_input.SHARP_YAW - 1.0), 0.0, 1.0)
+		var t := clampf((abs_yaw - 1.0) / (_input_handler.SHARP_YAW - 1.0), 0.0, 1.0)
 		target_bank = lerp(BANK_MAX_ANGLE, BANK_SHARP_ANGLE, t)
 	elif abs_yaw > 0.0:
 		target_bank = BANK_MAX_ANGLE * abs_yaw
-	target_bank *= -signf(yaw_in)  # bank opposite to turn direction
+	target_bank *= -signf(yaw_in)
 	_current_bank = lerp(_current_bank, target_bank, BANK_SMOOTHING * delta)
 
 	# Apply bank: FPV = camera roll, Follow = drone model roll
