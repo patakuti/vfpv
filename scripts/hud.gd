@@ -10,10 +10,18 @@ var player: CharacterBody3D
 var vi_input: Node
 var debug_mode: bool = false
 var _debug_label: Label
+var _is_android: bool = false
+var _pause_button: Button
 
 func _ready() -> void:
+	_is_android = (OS.get_name() == "Android")
 	command_line.visible = false
 	command_line.text_submitted.connect(_on_command_submitted)
+
+	if _is_android:
+		boost_bar.visible = false
+		_add_pause_button()
+
 	_debug_label = Label.new()
 	_debug_label.anchors_preset = 1  # top-right
 	_debug_label.anchor_left = 1.0
@@ -23,6 +31,24 @@ func _ready() -> void:
 	_debug_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_debug_label.visible = false
 	add_child(_debug_label)
+
+func _add_pause_button() -> void:
+	_pause_button = Button.new()
+	_pause_button.text = "| |"
+	_pause_button.custom_minimum_size = Vector2(120, 80)
+	_pause_button.anchor_left = 0.0
+	_pause_button.anchor_top = 0.0
+	_pause_button.anchor_right = 0.0
+	_pause_button.anchor_bottom = 0.0
+	_pause_button.offset_right = 120.0
+	_pause_button.offset_bottom = 80.0
+	# Must respond even while tree is paused
+	_pause_button.process_mode = Node.PROCESS_MODE_ALWAYS
+	_pause_button.pressed.connect(_on_pause_button_pressed)
+	add_child(_pause_button)
+
+func _on_pause_button_pressed() -> void:
+	get_tree().paused = not get_tree().paused
 
 func setup(p_player: CharacterBody3D, p_vi_input: Node) -> void:
 	player = p_player
@@ -46,14 +72,15 @@ func _process(_delta: float) -> void:
 
 	# Status indicator
 	var status_parts: Array[String] = []
-	if get_tree().paused and (not vi_input or vi_input.mode != vi_input.Mode.COMMAND):
+	var in_command_mode := (not _is_android) and vi_input and vi_input.mode == vi_input.Mode.COMMAND
+	if get_tree().paused and not in_command_mode:
 		status_parts.append("PAUSED")
 	if player.god_mode:
 		status_parts.append("GOD")
 	if player.auto_pilot and player.auto_pilot.enabled:
 		status_parts.append("AUTO")
 	if player._is_crashed:
-		status_parts.append("CRASHED - :reset to restart")
+		status_parts.append("CRASHED" if _is_android else "CRASHED - :reset to restart")
 	status_label.text = "  ".join(status_parts)
 
 	# Debug display
@@ -87,8 +114,8 @@ func _process(_delta: float) -> void:
 	else:
 		_debug_label.visible = false
 
-	# Toggle command line visibility
-	if vi_input:
+	# Toggle command line visibility (desktop only)
+	if not _is_android and vi_input:
 		if vi_input.mode == vi_input.Mode.COMMAND:
 			if not command_line.visible:
 				command_line.visible = true
