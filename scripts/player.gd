@@ -64,6 +64,11 @@ const BANK_SHARP_ANGLE: float = 55.0  # degrees (for sharp turn)
 const BANK_SMOOTHING: float = 8.0  # lerp speed
 var _current_bank: float = 0.0  # current bank angle in degrees
 
+# Pitch tilt (nose-down proportional to speed)
+const PITCH_TILT_MAX: float = 60.0  # degrees nose-down at max speed
+const PITCH_TILT_SMOOTHING: float = 3.0
+var _current_pitch_tilt: float = 0.0
+
 func _ready() -> void:
 	_spawn_position = global_position
 	_spawn_rotation = rotation
@@ -163,11 +168,12 @@ func _physics_process(delta: float) -> void:
 	# Update records
 	max_speed_record = max(max_speed_record, current_speed)
 
-	# FOV
+	# FOV (desktop only; Android uses fixed FOV to avoid false sense of forward motion)
 	var speed_ratio = clamp((current_speed - MIN_SPEED) / (MAX_SPEED - MIN_SPEED), 0.0, 1.0)
-	var active_cam = get_viewport().get_camera_3d()
-	if active_cam:
-		active_cam.fov = lerp(FOV_MIN, FOV_MAX, speed_ratio)
+	if not _is_android:
+		var active_cam = get_viewport().get_camera_3d()
+		if active_cam:
+			active_cam.fov = lerp(FOV_MIN, FOV_MAX, speed_ratio)
 
 	# Bank
 	var abs_yaw := absf(yaw_in)
@@ -180,10 +186,16 @@ func _physics_process(delta: float) -> void:
 	target_bank *= -signf(yaw_in)
 	_current_bank = lerp(_current_bank, target_bank, BANK_SMOOTHING * delta)
 
-	# Apply bank: FPV = camera roll, Follow = drone model roll
-	fpv_camera.rotation.z = deg_to_rad(_current_bank)
+	# Apply bank and pitch to drone_pivot; fpv_camera is a child of drone_pivot
+	# so it inherits both rotations automatically (camera stays fixed relative to frame)
 	if drone_pivot:
 		drone_pivot.rotation.z = deg_to_rad(_current_bank)
+
+	# Pitch tilt: nose-down proportional to speed
+	var target_pitch_tilt: float = PITCH_TILT_MAX * speed_ratio
+	_current_pitch_tilt = lerp(_current_pitch_tilt, target_pitch_tilt, PITCH_TILT_SMOOTHING * delta)
+	if drone_pivot:
+		drone_pivot.rotation.x = deg_to_rad(-_current_pitch_tilt)
 
 	# Update follow camera position
 	_update_follow_camera()
@@ -192,6 +204,9 @@ func _build_drone_model() -> void:
 	drone_pivot = Node3D.new()
 	drone_pivot.name = "DronePivot"
 	add_child(drone_pivot)
+	# Attach fpv_camera to drone_pivot so camera and frame tilt together as one unit.
+	# From the FPV camera view, the frame appears fixed; the world tilts.
+	fpv_camera.reparent(drone_pivot, true)
 
 	# === Materials ===
 	var carbon_mat := StandardMaterial3D.new()
