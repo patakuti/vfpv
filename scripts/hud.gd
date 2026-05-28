@@ -13,6 +13,7 @@ var _debug_label: Label
 var _is_android: bool = false
 var _pause_button: Button
 var _pause_menu: Node
+var _settings_screen: Node
 
 func _ready() -> void:
 	_is_android = (OS.get_name() == "Android")
@@ -50,7 +51,12 @@ func _add_pause_button() -> void:
 
 	_pause_menu = preload("res://scenes/pause_menu.tscn").instantiate()
 	_pause_menu.resume_pressed.connect(_on_pause_menu_resume)
+	_pause_menu.settings_pressed.connect(_on_pause_menu_settings)
 	add_child(_pause_menu)
+
+	_settings_screen = preload("res://scenes/settings_screen.tscn").instantiate()
+	_settings_screen.closed.connect(_on_settings_screen_closed)
+	add_child(_settings_screen)
 
 func _on_pause_button_pressed() -> void:
 	get_tree().paused = true
@@ -58,6 +64,14 @@ func _on_pause_button_pressed() -> void:
 
 func _on_pause_menu_resume() -> void:
 	pass
+
+func _on_pause_menu_settings() -> void:
+	_pause_menu.hide_menu()
+	_settings_screen.setup(player, player.main)
+	_settings_screen.show_screen()
+
+func _on_settings_screen_closed() -> void:
+	_pause_menu.show_menu()
 
 func setup(p_player: CharacterBody3D, p_vi_input: Node) -> void:
 	player = p_player
