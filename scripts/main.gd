@@ -20,6 +20,8 @@ func _ready() -> void:
 	sfx.setup(player)
 	player.sfx = sfx
 
+	SettingsManager.apply_to_game(player, self)
+
 func _adjust_light_for_renderer() -> void:
 	# Workaround for godotengine/godot#90259:
 	# Compatibility renderer makes shadowed lights overbright due to

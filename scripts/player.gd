@@ -6,6 +6,9 @@ extends CharacterBody3D
 var auto_pilot: Node3D  # set by main.gd
 var sfx: Node  # set by main.gd
 
+var _input_handler: Node   # vi_input (desktop) or android_input (Android)
+var _is_android: bool = false
+
 # Speed
 var speed: float = 80.0
 var base_speed: float = 80.0
@@ -61,16 +64,28 @@ const BANK_SHARP_ANGLE: float = 55.0  # degrees (for sharp turn)
 const BANK_SMOOTHING: float = 8.0  # lerp speed
 var _current_bank: float = 0.0  # current bank angle in degrees
 
+# Pitch tilt (nose-down proportional to speed)
+const PITCH_TILT_MAX: float = 60.0  # degrees nose-down at max speed
+const PITCH_TILT_SMOOTHING: float = 3.0
+var _current_pitch_tilt: float = 0.0
+
 func _ready() -> void:
 	_spawn_position = global_position
 	_spawn_rotation = rotation
 
-	# Connect vi_input signals
-	vi_input.set_max_speed.connect(_on_set_max_speed)
-	vi_input.set_min_speed.connect(_on_set_min_speed)
-	vi_input.command_submitted.connect(_on_command_submitted)
-	vi_input.toggle_pause.connect(_on_toggle_pause)
-	vi_input.set_speed.connect(_on_set_speed)
+	_is_android = (OS.get_name() == "Android")
+	if _is_android:
+		var ai := preload("res://scripts/android_input.gd").new()
+		ai.name = "AndroidInput"
+		add_child(ai)
+		_input_handler = ai
+	else:
+		_input_handler = vi_input
+		vi_input.set_max_speed.connect(_on_set_max_speed)
+		vi_input.set_min_speed.connect(_on_set_min_speed)
+		vi_input.command_submitted.connect(_on_command_submitted)
+		vi_input.toggle_pause.connect(_on_toggle_pause)
+		vi_input.set_speed.connect(_on_set_speed)
 
 	# Build drone model
 	_build_drone_model()
@@ -90,46 +105,54 @@ func _physics_process(delta: float) -> void:
 
 	elapsed_time += delta
 
-	# Rotation: manual input takes priority, otherwise use auto_pilot
-	var yaw_in: float = vi_input.yaw_input
-	var pitch_in: float = vi_input.pitch_input
-	var yaw_rate: float = YAW_RATE
-	var pitch_rate: float = PITCH_RATE
-	if auto_pilot and auto_pilot.enabled:
-		if yaw_in == 0.0 and auto_pilot.auto_yaw != 0.0:
-			yaw_in = auto_pilot.auto_yaw
-			yaw_rate = YAW_RATE * AUTO_RATE_MULTIPLIER
-		if pitch_in == 0.0 and auto_pilot.auto_pitch != 0.0:
-			pitch_in = auto_pilot.auto_pitch
-			pitch_rate = PITCH_RATE * AUTO_RATE_MULTIPLIER
-	var yaw_delta = -yaw_in * deg_to_rad(yaw_rate) * delta
-	var pitch_delta = pitch_in * deg_to_rad(pitch_rate) * delta
-	rotate_y(yaw_delta)
-	rotate_object_local(Vector3.RIGHT, pitch_delta)
+	var yaw_in: float = _input_handler.yaw_input
+	var current_speed: float
 
-	# Boost
-	if vi_input.boost_pressed and boost_fuel > 0.0:
-		is_boosting = true
-		boost_fuel = max(0.0, boost_fuel - BOOST_CONSUME_RATE * delta)
+	if _is_android:
+		# --- Android: Altitude Hold model ---
+		# Yaw rotation only (no pitch)
+		rotate_y(-yaw_in * deg_to_rad(YAW_RATE) * delta)
+
+		speed = _input_handler.speed_target
+		current_speed = speed
+
+		# Horizontal movement (ignore pitch component of basis)
+		var horiz_fwd := Vector3(-global_transform.basis.z.x, 0.0, -global_transform.basis.z.z)
+		if horiz_fwd.length_squared() > 0.001:
+			horiz_fwd = horiz_fwd.normalized()
+		velocity = horiz_fwd * current_speed
+		velocity.y = _input_handler.altitude_delta
 	else:
-		is_boosting = false
-		boost_fuel = min(BOOST_MAX, boost_fuel + BOOST_RECOVERY_RATE * delta)
+		# --- Desktop: original flight model ---
+		var pitch_in: float = _input_handler.pitch_input
+		var yaw_rate: float = YAW_RATE
+		var pitch_rate: float = PITCH_RATE
+		if auto_pilot and auto_pilot.enabled:
+			if yaw_in == 0.0 and auto_pilot.auto_yaw != 0.0:
+				yaw_in = auto_pilot.auto_yaw
+				yaw_rate = YAW_RATE * AUTO_RATE_MULTIPLIER
+			if pitch_in == 0.0 and auto_pilot.auto_pitch != 0.0:
+				pitch_in = auto_pilot.auto_pitch
+				pitch_rate = PITCH_RATE * AUTO_RATE_MULTIPLIER
+		rotate_y(-yaw_in * deg_to_rad(yaw_rate) * delta)
+		rotate_object_local(Vector3.RIGHT, pitch_in * deg_to_rad(pitch_rate) * delta)
 
-	# SFX: boost
-	if sfx:
-		sfx.set_boost_active(is_boosting)
+		# Boost
+		if _input_handler.boost_pressed and boost_fuel > 0.0:
+			is_boosting = true
+			boost_fuel = max(0.0, boost_fuel - BOOST_CONSUME_RATE * delta)
+		else:
+			is_boosting = false
+			boost_fuel = min(BOOST_MAX, boost_fuel + BOOST_RECOVERY_RATE * delta)
+		if sfx:
+			sfx.set_boost_active(is_boosting)
 
-	# Speed
-	var current_speed = speed
-	if is_boosting:
-		current_speed *= BOOST_MULTIPLIER
+		current_speed = speed
+		if is_boosting:
+			current_speed *= BOOST_MULTIPLIER
 
-	# Forward movement
-	var forward = -global_transform.basis.z
-	velocity = forward * current_speed
-
-	# Gravity
-	velocity.y -= GRAVITY * delta
+		velocity = -global_transform.basis.z * current_speed
+		velocity.y -= GRAVITY * delta
 
 	# Move
 	move_and_slide()
@@ -145,28 +168,34 @@ func _physics_process(delta: float) -> void:
 	# Update records
 	max_speed_record = max(max_speed_record, current_speed)
 
-	# FOV
+	# FOV (desktop only; Android uses fixed FOV to avoid false sense of forward motion)
 	var speed_ratio = clamp((current_speed - MIN_SPEED) / (MAX_SPEED - MIN_SPEED), 0.0, 1.0)
-	var active_cam = get_viewport().get_camera_3d()
-	if active_cam:
-		active_cam.fov = lerp(FOV_MIN, FOV_MAX, speed_ratio)
+	if not _is_android:
+		var active_cam = get_viewport().get_camera_3d()
+		if active_cam:
+			active_cam.fov = lerp(FOV_MIN, FOV_MAX, speed_ratio)
 
 	# Bank
 	var abs_yaw := absf(yaw_in)
 	var target_bank: float = 0.0
 	if abs_yaw > 1.0:
-		# Sharp turn: interpolate between normal max and sharp max
-		var t := clampf((abs_yaw - 1.0) / (vi_input.SHARP_YAW - 1.0), 0.0, 1.0)
+		var t := clampf((abs_yaw - 1.0) / (_input_handler.SHARP_YAW - 1.0), 0.0, 1.0)
 		target_bank = lerp(BANK_MAX_ANGLE, BANK_SHARP_ANGLE, t)
 	elif abs_yaw > 0.0:
 		target_bank = BANK_MAX_ANGLE * abs_yaw
-	target_bank *= -signf(yaw_in)  # bank opposite to turn direction
+	target_bank *= -signf(yaw_in)
 	_current_bank = lerp(_current_bank, target_bank, BANK_SMOOTHING * delta)
 
-	# Apply bank: FPV = camera roll, Follow = drone model roll
-	fpv_camera.rotation.z = deg_to_rad(_current_bank)
+	# Apply bank and pitch to drone_pivot; fpv_camera is a child of drone_pivot
+	# so it inherits both rotations automatically (camera stays fixed relative to frame)
 	if drone_pivot:
 		drone_pivot.rotation.z = deg_to_rad(_current_bank)
+
+	# Pitch tilt: nose-down proportional to speed
+	var target_pitch_tilt: float = PITCH_TILT_MAX * speed_ratio
+	_current_pitch_tilt = lerp(_current_pitch_tilt, target_pitch_tilt, PITCH_TILT_SMOOTHING * delta)
+	if drone_pivot:
+		drone_pivot.rotation.x = deg_to_rad(-_current_pitch_tilt)
 
 	# Update follow camera position
 	_update_follow_camera()
@@ -175,6 +204,9 @@ func _build_drone_model() -> void:
 	drone_pivot = Node3D.new()
 	drone_pivot.name = "DronePivot"
 	add_child(drone_pivot)
+	# Attach fpv_camera to drone_pivot so camera and frame tilt together as one unit.
+	# From the FPV camera view, the frame appears fixed; the world tilts.
+	fpv_camera.reparent(drone_pivot, true)
 
 	# === Materials ===
 	var carbon_mat := StandardMaterial3D.new()
@@ -392,6 +424,10 @@ func respawn() -> void:
 	velocity = Vector3.ZERO
 	speed = base_speed
 	boost_fuel = BOOST_MAX
+
+func set_spawn_y(y: float) -> void:
+	global_position.y = y
+	_spawn_position.y = y
 
 func _activate_camera(cam: Camera3D) -> void:
 	fpv_camera.current = (cam == fpv_camera)

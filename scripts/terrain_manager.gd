@@ -49,6 +49,16 @@ func _ready() -> void:
 	_shared_material = StandardMaterial3D.new()
 	_shared_material.vertex_color_use_as_albedo = true
 
+func get_height_at(world_x: float, world_z: float) -> float:
+	var biome_val := _biome_noise.get_noise_2d(world_x, world_z)
+	var h := _noise.get_noise_2d(world_x, world_z)
+	if biome_val < -0.2:
+		return h * 25.0 - 8.0
+	elif biome_val > 0.2:
+		return h * 80.0 + 15.0
+	else:
+		return h * 40.0
+
 func setup(player: Node3D) -> void:
 	_player = player
 	_enabled = true

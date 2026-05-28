@@ -8,6 +8,10 @@
 
 config_version=5
 
+[autoload]
+
+SettingsManager="*res://scripts/settings_manager.gd"
+
 [animation]
 
 compatibility/default_parent_skeleton_in_mesh_instance_3d=true
@@ -23,3 +27,13 @@ config/features=PackedStringArray("4.6")
 window/size/viewport_width=1920
 window/size/viewport_height=1080
 window/stretch/mode="canvas_items"
+window/handheld/orientation=2
+
+[input_devices]
+
+sensors/enable_accelerometer=true
+
+[rendering]
+
+textures/vram_compression/import_etc2_astc=true
+renderer/rendering_method.mobile="gl_compatibility"
