@@ -11,20 +11,38 @@ var _min_slider: HSlider
 var _max_slider: HSlider
 var _stage_option: OptionButton
 var _quality_option: OptionButton
-var _god_check: CheckButton
+var _god_check: Button
 var _camera_option: OptionButton
+var _bgm_mute_check: Button
 
-const _FONT_TITLE := 36
-const _FONT_SECTION := 22
-const _FONT_ITEM := 26
-const _BTN_H := 80
-const _ROW_H := 70
+var _ui_scale: float = 1.0
+var _FONT_TITLE: int = 36
+var _FONT_SECTION: int = 22
+var _FONT_ITEM: int = 26
+var _BTN_H: int = 80
+var _ROW_H: int = 70
 
 func _ready() -> void:
 	layer = 11
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
+	_ui_scale = _compute_ui_scale()
+	_FONT_TITLE   = int(36 * _ui_scale)
+	_FONT_SECTION = int(22 * _ui_scale)
+	_FONT_ITEM    = int(26 * _ui_scale)
+	_BTN_H        = int(80 * _ui_scale)
+	_ROW_H        = int(70 * _ui_scale)
 	_build_ui()
+
+func _compute_ui_scale() -> float:
+	var dpi := float(DisplayServer.screen_get_dpi())
+	if dpi <= 0.0:
+		return 1.0
+	var window := Vector2(DisplayServer.window_get_size())
+	var content_scale := minf(window.x / 1920.0, window.y / 1080.0)
+	if content_scale <= 0.0:
+		return 1.0
+	return clampf((dpi / 320.0) / content_scale, 0.5, 3.0)
 
 func setup(player: Node, main: Node) -> void:
 	_player = player
@@ -57,15 +75,15 @@ func _build_ui() -> void:
 
 	var margin := MarginContainer.new()
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.add_theme_constant_override("margin_left", 30)
-	margin.add_theme_constant_override("margin_right", 30)
-	margin.add_theme_constant_override("margin_top", 20)
-	margin.add_theme_constant_override("margin_bottom", 20)
+	margin.add_theme_constant_override("margin_left", int(30 * _ui_scale))
+	margin.add_theme_constant_override("margin_right", int(30 * _ui_scale))
+	margin.add_theme_constant_override("margin_top", int(20 * _ui_scale))
+	margin.add_theme_constant_override("margin_bottom", int(20 * _ui_scale))
 	scroll.add_child(margin)
 
 	var vbox := VBoxContainer.new()
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.add_theme_constant_override("separation", 8)
+	vbox.add_theme_constant_override("separation", int(8 * _ui_scale))
 	margin.add_child(vbox)
 
 	# Title
@@ -115,9 +133,18 @@ func _build_ui() -> void:
 	god_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	god_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	god_row.add_child(god_lbl)
-	_god_check = CheckButton.new()
-	_god_check.custom_minimum_size = Vector2(80, _ROW_H)
-	god_row.add_child(_god_check)
+	_god_check = _make_toggle(god_row)
+
+	var bgm_row := HBoxContainer.new()
+	bgm_row.add_theme_constant_override("separation", 16)
+	vbox.add_child(bgm_row)
+	var bgm_lbl := Label.new()
+	bgm_lbl.text = "Mute BGM"
+	bgm_lbl.add_theme_font_size_override("font_size", _FONT_ITEM)
+	bgm_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bgm_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bgm_row.add_child(bgm_lbl)
+	_bgm_mute_check = _make_toggle(bgm_row)
 
 	var cam_row := HBoxContainer.new()
 	cam_row.add_theme_constant_override("separation", 16)
@@ -129,11 +156,12 @@ func _build_ui() -> void:
 	cam_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	cam_row.add_child(cam_lbl)
 	_camera_option = OptionButton.new()
-	_camera_option.custom_minimum_size = Vector2(160, _ROW_H)
-	_camera_option.add_theme_font_size_override("font_size", 22)
+	_camera_option.custom_minimum_size = Vector2(int(160 * _ui_scale), _ROW_H)
+	_camera_option.add_theme_font_size_override("font_size", _FONT_ITEM)
 	_camera_option.add_item("FPV")
 	_camera_option.add_item("Follow")
 	cam_row.add_child(_camera_option)
+	_camera_option.get_popup().add_theme_font_size_override("font_size", _FONT_ITEM)
 	vbox.add_child(HSeparator.new())
 
 	# --- Close ---
@@ -157,6 +185,16 @@ func _btn(label: String, callback: Callable) -> Button:
 	btn.pressed.connect(callback)
 	return btn
 
+func _make_toggle(parent: Node) -> Button:
+	var btn := Button.new()
+	btn.toggle_mode = true
+	btn.text = "OFF"
+	btn.custom_minimum_size = Vector2(int(120 * _ui_scale), _ROW_H)
+	btn.add_theme_font_size_override("font_size", _FONT_ITEM)
+	btn.toggled.connect(func(pressed: bool) -> void: btn.text = "ON" if pressed else "OFF")
+	parent.add_child(btn)
+	return btn
+
 func _slider(parent: Node, min_v: float, max_v: float, step: float, cb: Callable) -> HSlider:
 	var s := HSlider.new()
 	s.min_value = min_v
@@ -175,6 +213,8 @@ func _option(parent: Node, items: Array) -> OptionButton:
 	for item in items:
 		ob.add_item(item)
 	parent.add_child(ob)
+	# Popup is available after add_child; set font size for dropdown items
+	ob.get_popup().add_theme_font_size_override("font_size", _FONT_ITEM)
 	return ob
 
 func _sync_from_settings() -> void:
@@ -191,6 +231,9 @@ func _sync_from_settings() -> void:
 	_quality_option.selected = qi if qi >= 0 else 3
 
 	_god_check.button_pressed = SettingsManager.god_mode
+	_god_check.text = "ON" if SettingsManager.god_mode else "OFF"
+	_bgm_mute_check.button_pressed = SettingsManager.bgm_muted
+	_bgm_mute_check.text = "ON" if SettingsManager.bgm_muted else "OFF"
 
 	var cameras := ["fpv", "follow"]
 	var ci := cameras.find(SettingsManager.camera_mode)
@@ -233,6 +276,7 @@ func _apply_and_save() -> void:
 	SettingsManager.quality = qualities[_quality_option.selected]
 
 	SettingsManager.god_mode = _god_check.button_pressed
+	SettingsManager.bgm_muted = _bgm_mute_check.button_pressed
 
 	var cameras := ["fpv", "follow"]
 	SettingsManager.camera_mode = cameras[_camera_option.selected]

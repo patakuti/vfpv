@@ -10,6 +10,7 @@ var quality: String = "auto"
 var stage: String = "terrain"
 var god_mode: bool = false
 var camera_mode: String = "fpv"
+var bgm_muted: bool = false
 
 func _ready() -> void:
 	load_settings()
@@ -24,6 +25,7 @@ func load_settings() -> void:
 	stage       = cfg.get_value(SECTION, "stage",       stage)
 	god_mode    = cfg.get_value(SECTION, "god_mode",    god_mode)
 	camera_mode = cfg.get_value(SECTION, "camera_mode", camera_mode)
+	bgm_muted   = cfg.get_value(SECTION, "bgm_muted",   bgm_muted)
 	var rg: Array = cfg.get_value(SECTION, "ref_gravity", [ref_gravity.x, ref_gravity.y, ref_gravity.z])
 	ref_gravity = Vector3(rg[0], rg[1], rg[2])
 
@@ -35,6 +37,7 @@ func save_settings() -> void:
 	cfg.set_value(SECTION, "stage",       stage)
 	cfg.set_value(SECTION, "god_mode",    god_mode)
 	cfg.set_value(SECTION, "camera_mode", camera_mode)
+	cfg.set_value(SECTION, "bgm_muted",   bgm_muted)
 	cfg.set_value(SECTION, "ref_gravity", [ref_gravity.x, ref_gravity.y, ref_gravity.z])
 	cfg.save(SETTINGS_PATH)
 
@@ -45,3 +48,6 @@ func apply_to_game(player: Node, main: Node) -> void:
 	player._activate_camera(player.fpv_camera if camera_mode == "fpv" else player.follow_camera)
 	main.switch_stage(stage)
 	main.set_quality(quality)
+	var bgm := main.get_node_or_null("BGM")
+	if bgm:
+		bgm.volume_db = -80.0 if bgm_muted else 0.0
