@@ -14,6 +14,7 @@ Drone FPV footage looks fun. This project tries to capture something like that f
 
 - Godot Engine 4.4+
 - Linux, Windows, or Web browser
+- Android 10+ (API 30+) — see [ANDROID.md](ANDROID.md)
 
 ## How to Run
 
@@ -37,6 +38,10 @@ cd Web && python3 -m http.server 8000
 ```
 
 Then open `http://localhost:8000` in your browser.
+
+### Android
+
+See [ANDROID.md](ANDROID.md).
 
 ## Controls
 
@@ -105,14 +110,20 @@ Then open `http://localhost:8000` in your browser.
 project.godot
 scenes/
   main.tscn            # Main scene
+  pause_menu.tscn      # Android pause menu
+  settings_screen.tscn # Android settings screen
 scripts/
   main.gd              # Scene initialization
   player.gd            # Flight physics, boost, crash/respawn
-  vi_input.gd          # Vi-style input handling
+  vi_input.gd          # Vi-style input handling (desktop)
+  android_input.gd     # Accelerometer + touch input (Android)
+  settings_manager.gd  # Persistent settings via ConfigFile (Android)
   terrain_manager.gd   # Procedural terrain chunk management
   city_manager.gd      # Urban city stage chunk management
   canyon_manager.gd    # Canyon stage chunk management
   hud.gd               # HUD display
+  pause_menu.gd        # Android pause menu logic
+  settings_screen.gd   # Android settings screen logic
   auto_pilot.gd        # Raycast-based obstacle auto-avoidance
   post_process.gd      # Shader uniform management, crash FX, hyperspeed effects
   sfx.gd               # Procedural sound effects (crash, boost, wind)
