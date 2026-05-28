@@ -96,7 +96,7 @@ func _handle_touch(event: InputEvent) -> void:
 					-ALTITUDE_SPEED, ALTITUDE_SPEED)
 
 func _handle_debug_keys(event: InputEvent) -> void:
-	if event.echo or not event is InputEventKey:
+	if not event is InputEventKey or event.echo:
 		return
 
 	if event.pressed:
