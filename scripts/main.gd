@@ -21,6 +21,7 @@ func _ready() -> void:
 	player.sfx = sfx
 
 	SettingsManager.apply_to_game(player, self)
+	hud.show_startup()
 
 func _adjust_light_for_renderer() -> void:
 	# Workaround for godotengine/godot#90259:
