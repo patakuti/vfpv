@@ -115,11 +115,6 @@ func _build_ui() -> void:
 	vbox.add_child(title)
 	vbox.add_child(HSeparator.new())
 
-	# --- Sensor ---
-	_section(vbox, "Sensor")
-	vbox.add_child(_btn("Calibrate Tilt", _on_calibrate_pressed))
-	vbox.add_child(HSeparator.new())
-
 	# --- Speed ---
 	_section(vbox, "Speed")
 	_min_speed_label = _speed_stepper(vbox, _on_min_dec, _on_min_inc)
@@ -284,13 +279,6 @@ func _on_max_dec() -> void:
 func _on_max_inc() -> void:
 	_max_speed_val = minf(_max_speed_val + 10.0, 300.0)
 	_update_speed_labels()
-
-func _on_calibrate_pressed() -> void:
-	if not _player:
-		return
-	var ai := _player.get_node_or_null("AndroidInput")
-	if ai and ai.has_method("calibrate"):
-		ai.calibrate()
 
 func _on_close_pressed() -> void:
 	_apply_and_save()
