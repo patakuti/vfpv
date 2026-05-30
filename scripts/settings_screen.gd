@@ -7,8 +7,8 @@ var _main: Node
 
 var _min_speed_label: Label
 var _max_speed_label: Label
-var _min_slider: HSlider
-var _max_slider: HSlider
+var _min_speed_val: float = 50.0
+var _max_speed_val: float = 150.0
 var _stage_option: OptionButton
 var _quality_option: OptionButton
 var _god_check: Button
@@ -73,10 +73,31 @@ func _build_ui() -> void:
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.add_child(scroll)
 
+	var strip_color := Color(0.2, 0.5, 0.9, 0.18)
+	var left_strip := ColorRect.new()
+	left_strip.anchor_left   = 0.0
+	left_strip.anchor_top    = 0.0
+	left_strip.anchor_right  = 0.0
+	left_strip.anchor_bottom = 1.0
+	left_strip.offset_right  = int(80 * _ui_scale)
+	left_strip.color = strip_color
+	left_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(left_strip)
+
+	var right_strip := ColorRect.new()
+	right_strip.anchor_left   = 1.0
+	right_strip.anchor_top    = 0.0
+	right_strip.anchor_right  = 1.0
+	right_strip.anchor_bottom = 1.0
+	right_strip.offset_left   = -int(80 * _ui_scale)
+	right_strip.color = strip_color
+	right_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(right_strip)
+
 	var margin := MarginContainer.new()
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.add_theme_constant_override("margin_left", int(30 * _ui_scale))
-	margin.add_theme_constant_override("margin_right", int(30 * _ui_scale))
+	margin.add_theme_constant_override("margin_left", int(80 * _ui_scale))
+	margin.add_theme_constant_override("margin_right", int(80 * _ui_scale))
 	margin.add_theme_constant_override("margin_top", int(20 * _ui_scale))
 	margin.add_theme_constant_override("margin_bottom", int(20 * _ui_scale))
 	scroll.add_child(margin)
@@ -101,15 +122,8 @@ func _build_ui() -> void:
 
 	# --- Speed ---
 	_section(vbox, "Speed")
-	_min_speed_label = Label.new()
-	_min_speed_label.add_theme_font_size_override("font_size", _FONT_ITEM)
-	vbox.add_child(_min_speed_label)
-	_min_slider = _slider(vbox, 10.0, 150.0, 5.0, _on_min_speed_changed)
-
-	_max_speed_label = Label.new()
-	_max_speed_label.add_theme_font_size_override("font_size", _FONT_ITEM)
-	vbox.add_child(_max_speed_label)
-	_max_slider = _slider(vbox, 50.0, 300.0, 10.0, _on_max_speed_changed)
+	_min_speed_label = _speed_stepper(vbox, _on_min_dec, _on_min_inc)
+	_max_speed_label = _speed_stepper(vbox, _on_max_dec, _on_max_inc)
 	vbox.add_child(HSeparator.new())
 
 	# --- Stage ---
@@ -195,16 +209,28 @@ func _make_toggle(parent: Node) -> Button:
 	parent.add_child(btn)
 	return btn
 
-func _slider(parent: Node, min_v: float, max_v: float, step: float, cb: Callable) -> HSlider:
-	var s := HSlider.new()
-	s.min_value = min_v
-	s.max_value = max_v
-	s.step = step
-	s.custom_minimum_size = Vector2(0, 50)
-	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	s.value_changed.connect(cb)
-	parent.add_child(s)
-	return s
+func _speed_stepper(parent: Node, dec_cb: Callable, inc_cb: Callable) -> Label:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", int(8 * _ui_scale))
+	parent.add_child(row)
+	var lbl := Label.new()
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl.add_theme_font_size_override("font_size", _FONT_ITEM)
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(lbl)
+	var btn_dec := Button.new()
+	btn_dec.text = "-"
+	btn_dec.custom_minimum_size = Vector2(_BTN_H, _BTN_H)
+	btn_dec.add_theme_font_size_override("font_size", _FONT_ITEM)
+	btn_dec.pressed.connect(dec_cb)
+	row.add_child(btn_dec)
+	var btn_inc := Button.new()
+	btn_inc.text = "+"
+	btn_inc.custom_minimum_size = Vector2(_BTN_H, _BTN_H)
+	btn_inc.add_theme_font_size_override("font_size", _FONT_ITEM)
+	btn_inc.pressed.connect(inc_cb)
+	row.add_child(btn_inc)
+	return lbl
 
 func _option(parent: Node, items: Array) -> OptionButton:
 	var ob := OptionButton.new()
@@ -218,8 +244,8 @@ func _option(parent: Node, items: Array) -> OptionButton:
 	return ob
 
 func _sync_from_settings() -> void:
-	_min_slider.value = SettingsManager.min_speed
-	_max_slider.value = SettingsManager.max_speed
+	_min_speed_val = SettingsManager.min_speed
+	_max_speed_val = SettingsManager.max_speed
 	_update_speed_labels()
 
 	var stages := ["terrain", "city", "canyon"]
@@ -240,17 +266,23 @@ func _sync_from_settings() -> void:
 	_camera_option.selected = ci if ci >= 0 else 0
 
 func _update_speed_labels() -> void:
-	_min_speed_label.text = "Min Speed: %d m/s" % int(_min_slider.value)
-	_max_speed_label.text = "Max Speed: %d m/s" % int(_max_slider.value)
+	_min_speed_label.text = "Min Speed: %d m/s" % int(_min_speed_val)
+	_max_speed_label.text = "Max Speed: %d m/s" % int(_max_speed_val)
 
-func _on_min_speed_changed(value: float) -> void:
-	if value >= _max_slider.value:
-		_max_slider.set_value_no_signal(value + _max_slider.step)
+func _on_min_dec() -> void:
+	_min_speed_val = maxf(_min_speed_val - 10.0, 10.0)
 	_update_speed_labels()
 
-func _on_max_speed_changed(value: float) -> void:
-	if value <= _min_slider.value:
-		_min_slider.set_value_no_signal(value - _min_slider.step)
+func _on_min_inc() -> void:
+	_min_speed_val = minf(_min_speed_val + 10.0, _max_speed_val - 10.0)
+	_update_speed_labels()
+
+func _on_max_dec() -> void:
+	_max_speed_val = maxf(_max_speed_val - 10.0, _min_speed_val + 10.0)
+	_update_speed_labels()
+
+func _on_max_inc() -> void:
+	_max_speed_val = minf(_max_speed_val + 10.0, 300.0)
 	_update_speed_labels()
 
 func _on_calibrate_pressed() -> void:
@@ -266,8 +298,8 @@ func _on_close_pressed() -> void:
 	closed.emit()
 
 func _apply_and_save() -> void:
-	SettingsManager.min_speed = _min_slider.value
-	SettingsManager.max_speed = _max_slider.value
+	SettingsManager.min_speed = _min_speed_val
+	SettingsManager.max_speed = _max_speed_val
 
 	var stages := ["terrain", "city", "canyon"]
 	SettingsManager.stage = stages[_stage_option.selected]
