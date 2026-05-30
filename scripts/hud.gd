@@ -52,6 +52,7 @@ func _add_pause_button() -> void:
 	_pause_menu = preload("res://scenes/pause_menu.tscn").instantiate()
 	_pause_menu.resume_pressed.connect(_on_pause_menu_resume)
 	_pause_menu.settings_pressed.connect(_on_pause_menu_settings)
+	_pause_menu.calibrate_pressed.connect(_on_calibrate_pressed)
 	add_child(_pause_menu)
 
 	_settings_screen = preload("res://scenes/settings_screen.tscn").instantiate()
@@ -64,6 +65,17 @@ func _on_pause_button_pressed() -> void:
 
 func _on_pause_menu_resume() -> void:
 	pass
+
+func _on_calibrate_pressed() -> void:
+	if player:
+		var ai := player.get_node_or_null("AndroidInput")
+		if ai:
+			ai.calibrate()
+
+func show_startup() -> void:
+	get_tree().paused = true
+	if _is_android and _pause_menu:
+		_pause_menu.show_menu()
 
 func _on_pause_menu_settings() -> void:
 	_pause_menu.hide_menu()

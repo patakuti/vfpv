@@ -2,13 +2,16 @@ extends CanvasLayer
 
 signal resume_pressed
 signal settings_pressed
+signal calibrate_pressed
 
 var _ui_scale: float = 1.0
+var _is_android: bool = false
 
 func _ready() -> void:
 	layer = 10
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
+	_is_android = (OS.get_name() == "Android")
 	_ui_scale = _compute_ui_scale()
 	_build_ui()
 
@@ -61,6 +64,8 @@ func _build_ui() -> void:
 	vbox.add_child(spacer)
 
 	_make_button(vbox, "Resume", _on_resume_pressed)
+	if _is_android:
+		_make_button(vbox, "Calibrate", _on_calibrate_pressed)
 	_make_button(vbox, "Settings", _on_settings_pressed)
 	_make_button(vbox, "Quit", _on_quit_pressed)
 
@@ -83,6 +88,9 @@ func _on_resume_pressed() -> void:
 	hide_menu()
 	get_tree().paused = false
 	resume_pressed.emit()
+
+func _on_calibrate_pressed() -> void:
+	calibrate_pressed.emit()
 
 func _on_settings_pressed() -> void:
 	settings_pressed.emit()
