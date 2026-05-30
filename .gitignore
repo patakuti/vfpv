@@ -6,6 +6,8 @@
 *.x86_64
 *.exe
 *.pck
+*.apk
+*.apk.idsig
 Web/
 
 
