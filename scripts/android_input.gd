@@ -6,8 +6,8 @@ const MAX_PITCH_TILT: float = 0.30  # diff.y threshold → max speed
 const MAX_YAW_TILT: float = 0.30    # diff.x threshold → max yaw
 
 # Touch altitude
-const ALTITUDE_SPEED: float = 30.0       # m/s cap for swipe control
-const ALTITUDE_SENSITIVITY: float = 3.0  # pixels/event → m/s
+const ALTITUDE_SPEED: float = 60.0       # m/s cap for swipe control
+const ALTITUDE_SENSITIVITY: float = 0.08  # pixels/sec → m/s (frame-rate independent)
 
 # Debug
 const DEBUG_SPEED_STEP: float = 0.1  # fraction of speed range per UP/DOWN press
@@ -92,8 +92,11 @@ func _handle_touch(event: InputEvent) -> void:
 	elif event is InputEventScreenDrag:
 		if event.index == _right_touch_id:
 			# Screen Y+ is downward; up-drag (negative relative.y) → ascend
-			altitude_delta = clampf(-event.relative.y * ALTITUDE_SENSITIVITY,
+			altitude_delta = clampf(-event.velocity.y * ALTITUDE_SENSITIVITY,
 					-ALTITUDE_SPEED, ALTITUDE_SPEED)
+			if OS.is_debug_build():
+				print("[alt] rel.y=%.3f vel.y=%.3f delta=%.3f" % [
+						event.relative.y, event.velocity.y, altitude_delta])
 
 func _handle_debug_keys(event: InputEvent) -> void:
 	if not event is InputEventKey or event.echo:
