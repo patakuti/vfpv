@@ -42,6 +42,7 @@ var elapsed_time: float = 0.0
 
 # Crash
 var _is_crashed: bool = false
+var _respawn_grace: float = 0.0  # brief invincibility after respawn
 var _spawn_position: Vector3
 var _spawn_rotation: Vector3
 var post_process: Node  # set by main.gd
@@ -158,7 +159,9 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	# Collision check
-	if get_slide_collision_count() > 0:
+	if _respawn_grace > 0.0:
+		_respawn_grace -= delta
+	elif get_slide_collision_count() > 0:
 		if god_mode:
 			_bounce()
 		else:
@@ -419,6 +422,7 @@ func _crash() -> void:
 
 func respawn() -> void:
 	_is_crashed = false
+	_respawn_grace = 0.5
 	global_position = _spawn_position
 	rotation = _spawn_rotation
 	velocity = Vector3.ZERO
@@ -428,6 +432,10 @@ func respawn() -> void:
 func set_spawn_y(y: float) -> void:
 	global_position.y = y
 	_spawn_position.y = y
+
+func set_spawn(pos: Vector3, rot: Vector3) -> void:
+	_spawn_position = pos
+	_spawn_rotation = rot
 
 func _activate_camera(cam: Camera3D) -> void:
 	fpv_camera.current = (cam == fpv_camera)

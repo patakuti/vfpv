@@ -74,6 +74,7 @@ See [ANDROID.md](ANDROID.md).
 | `:stage terrain` | Switch to natural terrain stage |
 | `:stage city` | Switch to urban city stage |
 | `:stage canyon` | Switch to canyon stage |
+| `:stage tube` | Switch to tube tunnel stage |
 | `:quality low/mid/high/auto` | Set rendering quality (default: auto) |
 | `:quit` or `:q` | Quit game |
 | `Escape` | Cancel and return to normal mode |
@@ -81,10 +82,11 @@ See [ANDROID.md](ANDROID.md).
 ## Features
 
 - **Vi-style controls** — Navigate with familiar vim keybindings
-- **Stage selection** — `:stage terrain` for natural terrain, `:stage city` for urban flying, `:stage canyon` for towering rock walls
+- **Stage selection** — `:stage terrain` for natural terrain, `:stage city` for urban flying, `:stage canyon` for towering rock walls, `:stage tube` for enclosed tunnel racing
 - **Procedural terrain** — Infinite Perlin noise terrain with 3 biomes (canyon, mountain, plains)
 - **City stage** — Dense urban grid with buildings 15–100m tall, tight 8–15m street gaps
 - **Canyon stage** — Sharp ridged rock walls rising up to ~170m, red-brown to sandy palette, 30–60m valley gaps
+- **Tube stage** — Infinite enclosed circular tunnel (diameter 40m) with coaster-style curves; colored ring markers and white spine line make curvature readable; up to 5 rival aircraft fly ahead slightly slower than the player
 - **Dynamic chunk loading** — Terrain generates/destroys around player position
 - **Speed-linked FOV** — Field of view widens with speed (80° - 110°)
 - **Motion blur** — Radial blur intensifies with speed
@@ -121,6 +123,7 @@ scripts/
   terrain_manager.gd   # Procedural terrain chunk management
   city_manager.gd      # Urban city stage chunk management
   canyon_manager.gd    # Canyon stage chunk management
+  tube_manager.gd      # Tube stage: procedural tunnel + rival aircraft
   hud.gd               # HUD display
   pause_menu.gd        # Android pause menu logic
   settings_screen.gd   # Android settings screen logic
