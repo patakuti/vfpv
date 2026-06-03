@@ -87,11 +87,30 @@ func activate(player: Node3D) -> void:
 		# extends behind them and they cannot escape through the entrance.
 		var tan := _ctrl_tan[LOOK_BEHIND]
 		player.set_spawn(_ctrl_pos[LOOK_BEHIND], Vector3(0.0, atan2(-tan.x, -tan.z), 0.0))
+	if "tube_manager" in player:
+		player.tube_manager = self
 
 func deactivate() -> void:
 	_enabled = false
+	if _player and "tube_manager" in _player:
+		_player.tube_manager = null
 	_player = null
 	_clear_all()
+
+func get_tube_info_near(pos: Vector3) -> Dictionary:
+	if _ctrl_pos.is_empty():
+		return {"center": pos, "tangent": Vector3(0.0, 0.0, -1.0)}
+	var local_cur: int = clamp(_player_seg - _base_idx, 0, _ctrl_pos.size() - 1)
+	var lo: int = max(0, local_cur - 5)
+	var hi: int = min(_ctrl_pos.size() - 1, local_cur + 5)
+	var best_li: int = lo
+	var best_dsq: float = INF
+	for li in range(lo, hi + 1):
+		var dsq: float = pos.distance_squared_to(_ctrl_pos[li])
+		if dsq < best_dsq:
+			best_dsq = dsq
+			best_li = li
+	return {"center": _ctrl_pos[best_li], "tangent": _ctrl_tan[best_li]}
 
 func set_quality(_mode: String) -> void:
 	pass  # Tube stage has no quality presets
