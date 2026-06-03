@@ -36,26 +36,36 @@ func set_quality(level: String) -> void:
 	$TerrainManager.set_quality(level)
 	$CityManager.set_quality(level)
 	$CanyonManager.set_quality(level)
+	$TubeManager.set_quality(level)
 
 func switch_stage(stage_name: String) -> void:
 	var terrain = $TerrainManager
 	var city = $CityManager
 	var canyon = $CanyonManager
+	var tube = $TubeManager
 	var player = $Player
 
 	match stage_name:
 		"terrain":
 			city.deactivate()
 			canyon.deactivate()
+			tube.deactivate()
 			terrain.setup(player)
 		"city":
 			terrain.deactivate()
 			canyon.deactivate()
+			tube.deactivate()
 			city.activate(player)
 		"canyon":
 			terrain.deactivate()
 			city.deactivate()
+			tube.deactivate()
 			canyon.activate(player)
+		"tube":
+			terrain.deactivate()
+			city.deactivate()
+			canyon.deactivate()
+			tube.activate(player)
 		_:
 			return
 
