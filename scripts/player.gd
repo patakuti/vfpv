@@ -51,6 +51,9 @@ var main: Node  # set by main.gd
 # God mode
 var god_mode: bool = false
 
+# Stage context (set by stage managers)
+var tube_manager: Node = null
+
 # Camera
 var is_fpv: bool = true
 
@@ -393,6 +396,9 @@ func _update_follow_camera() -> void:
 		follow_camera.look_at(global_position, Vector3.UP)
 
 func _bounce() -> void:
+	if tube_manager:
+		_tube_bounce()
+		return
 	var collision := get_slide_collision(0)
 	var normal := collision.get_normal()
 	var forward := -global_transform.basis.z
@@ -406,6 +412,27 @@ func _bounce() -> void:
 	speed = max(speed, MIN_SPEED)
 	if post_process:
 		var active_cam = get_viewport().get_camera_3d()
+		if active_cam:
+			post_process.shake(active_cam, 0.2, 0.15)
+
+func _tube_bounce() -> void:
+	var info: Dictionary = tube_manager.get_tube_info_near(global_position)
+	var tube_center: Vector3 = info["center"]
+	var tube_tan: Vector3 = info["tangent"]
+	var to_center: Vector3 = tube_center - global_position
+	if to_center.length_squared() < 0.001:
+		to_center = Vector3.UP
+	to_center = to_center.normalized()
+	global_position += to_center * 1.0
+	# Orient along tube direction closest to current forward
+	var current_forward := -global_transform.basis.z
+	if current_forward.dot(tube_tan) < 0.0:
+		tube_tan = -tube_tan
+	look_at(global_position + tube_tan, Vector3.UP)
+	speed = max(speed * BOUNCE_DAMPING * BOUNCE_DAMPING, MIN_SPEED)
+	_respawn_grace = 0.2
+	if post_process:
+		var active_cam := get_viewport().get_camera_3d()
 		if active_cam:
 			post_process.shake(active_cam, 0.2, 0.15)
 
