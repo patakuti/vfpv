@@ -7,9 +7,9 @@ const TUBE_SIDES: int = 16
 const LOOK_AHEAD: int = 25
 const LOOK_BEHIND: int = 10
 const SEGS_PER_FRAME: int = 2
-const MAX_YAW_PER_SEG: float = 5.0
+const MAX_YAW_PER_SEG: float = 2.5
 const MAX_PITCH_PER_SEG: float = 3.0
-const MAX_PITCH_Y: float = 0.16  # sin(~9°): limits vertical pitch for Android playability
+const MAX_PITCH_Y: float = 0.08  # sin(~4.6°): limits vertical pitch for Android playability
 
 # ─── Visual ────────────────────────────────────────────────────────────────
 const COLOR_WALL: Color = Color(0.08, 0.08, 0.10)
