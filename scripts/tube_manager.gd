@@ -9,7 +9,7 @@ const LOOK_BEHIND: int = 10
 const SEGS_PER_FRAME: int = 2
 const MAX_YAW_PER_SEG: float = 5.0
 const MAX_PITCH_PER_SEG: float = 3.0
-const MAX_PITCH_Y: float = 0.64  # sin(~40°): prevents vertical loops
+const MAX_PITCH_Y: float = 0.16  # sin(~9°): limits vertical pitch for Android playability
 
 # ─── Visual ────────────────────────────────────────────────────────────────
 const COLOR_WALL: Color = Color(0.08, 0.08, 0.10)
