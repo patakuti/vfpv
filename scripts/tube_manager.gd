@@ -18,6 +18,10 @@ const COLOR_RING_B: Color = Color(1.0, 0.10, 0.85)
 const COLOR_SPINE: Color = Color(0.95, 0.95, 0.95)
 const RING_INTERVAL: int = 4  # bright ring every N segments
 
+# ─── Rival trails ─────────────────────────────────────────────────────────
+const TRAIL_LENGTH: int = 8     # nodes per rival trail
+const TRAIL_DIST: float = 1.5   # meters between trail nodes
+
 # ─── Rivals ────────────────────────────────────────────────────────────────
 const RIVAL_SPAWN_AHEAD: float = 150.0
 const RIVAL_DESPAWN_BEHIND: float = 100.0
@@ -54,7 +58,7 @@ var _rival_timer: float = 0.0
 
 var _noise_yaw: FastNoiseLite
 var _noise_pitch: FastNoiseLite
-var _mat_wall: StandardMaterial3D
+var _mat_wall: ShaderMaterial
 
 # ─── Init ──────────────────────────────────────────────────────────────────
 func _ready() -> void:
@@ -72,10 +76,8 @@ func _ready() -> void:
 	_noise_pitch.fractal_type = FastNoiseLite.FRACTAL_FBM
 	_noise_pitch.fractal_octaves = 2
 
-	_mat_wall = StandardMaterial3D.new()
-	_mat_wall.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_mat_wall.vertex_color_use_as_albedo = true
-	_mat_wall.cull_mode = BaseMaterial3D.CULL_BACK
+	_mat_wall = ShaderMaterial.new()
+	_mat_wall.shader = load("res://shaders/tube_wall.gdshader")
 
 # ─── Public API ────────────────────────────────────────────────────────────
 func activate(player: Node3D) -> void:
@@ -154,6 +156,11 @@ func _clear_all() -> void:
 func _process(delta: float) -> void:
 	if not _enabled or not _player:
 		return
+
+	# Speed-linked shader: scan wave and glitch track player velocity
+	var speed_ratio := clampf(float(_player.speed) / 200.0, 0.0, 1.0)
+	_mat_wall.set_shader_parameter("scan_speed", lerpf(0.3, 2.5, speed_ratio))
+	_mat_wall.set_shader_parameter("glitch_intensity", speed_ratio * speed_ratio * 0.8)
 
 	_player_seg = _find_player_seg()
 	_player_dist = float(_player_seg) * SEGMENT_LENGTH
@@ -291,15 +298,21 @@ func _create_segment(seg_idx: int) -> void:
 
 	for i in range(TUBE_SIDES):
 		var i1 := (i + 1) % TUBE_SIDES
+		# UV: U = circumferential (0..1), V = segment index (integer = ring boundary).
+		# i+1 used for U1 (not i1) to avoid wrapping at the seam face.
+		var u0 := float(i)     / float(TUBE_SIDES)
+		var u1 := float(i + 1) / float(TUBE_SIDES)
+		var v0 := float(seg_idx)
+		var v1 := float(seg_idx + 1)
 		# Reversed winding so face normals point inward (toward tube center).
 		# CULL_BACK culls the outer face; inner face is rendered and collision
 		# normals point inward so god-mode bounce pushes player back inside.
-		st.set_color(cs[i]);  st.add_vertex(vs[i])
-		st.set_color(cs[i1]); st.add_vertex(vs[i1])
-		st.set_color(ce[i]);  st.add_vertex(ve[i])
-		st.set_color(ce[i]);  st.add_vertex(ve[i])
-		st.set_color(cs[i1]); st.add_vertex(vs[i1])
-		st.set_color(ce[i1]); st.add_vertex(ve[i1])
+		st.set_color(cs[i]);  st.set_uv(Vector2(u0, v0)); st.add_vertex(vs[i])
+		st.set_color(cs[i1]); st.set_uv(Vector2(u1, v0)); st.add_vertex(vs[i1])
+		st.set_color(ce[i]);  st.set_uv(Vector2(u0, v1)); st.add_vertex(ve[i])
+		st.set_color(ce[i]);  st.set_uv(Vector2(u0, v1)); st.add_vertex(ve[i])
+		st.set_color(cs[i1]); st.set_uv(Vector2(u1, v0)); st.add_vertex(vs[i1])
+		st.set_color(ce[i1]); st.set_uv(Vector2(u1, v1)); st.add_vertex(ve[i1])
 
 	var mesh := st.commit()
 
@@ -370,6 +383,7 @@ func _spawn_rival() -> void:
 	var dist: float = randf() * TUBE_RADIUS * 0.3
 	var offset := Vector2(cos(angle), sin(angle)) * dist
 	var node := _build_rival(rtype)
+	_add_trail(node, _trail_color(rtype))
 	add_child(node)
 	_rivals.append({
 		"type": rtype,
@@ -507,3 +521,29 @@ func _build_pod() -> Node3D:
 	# Center glow spine along Z
 	_box(root, Vector3(0.03, 0.03, 1.1), Vector3.ZERO, core_mat)
 	return root
+
+# ─── Rival trails ──────────────────────────────────────────────────────────
+func _trail_color(rtype: int) -> Color:
+	match rtype:
+		RivalType.DRONE: return RIVAL_DRONE_COLORS[randi() % RIVAL_DRONE_COLORS.size()]
+		RivalType.JET:   return Color(0.35, 0.55, 1.0)
+		RivalType.POD:   return Color(0.0, 1.0, 0.55)
+	return Color.WHITE
+
+func _add_trail(wrapper: Node3D, color: Color) -> void:
+	# Pre-create TRAIL_LENGTH glowing spheres as children of the rival wrapper.
+	# Local Z+ maps to world +tan (behind the model), so each node sits further
+	# behind the rival. Because they are children, positions update for free as
+	# the wrapper's global_transform is set each frame.
+	for j in range(TRAIL_LENGTH):
+		var t := 1.0 - float(j) / float(TRAIL_LENGTH)
+		var mi := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.22 * t
+		sm.height = sm.radius * 2.0
+		sm.radial_segments = 4
+		sm.rings = 2
+		mi.mesh = sm
+		mi.material_override = _emit_mat(color, color, 5.5 * t)
+		mi.position = Vector3(0.0, 0.0, float(j + 1) * TRAIL_DIST)
+		wrapper.add_child(mi)
