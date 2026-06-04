@@ -157,8 +157,8 @@ func _process(delta: float) -> void:
 	if not _enabled or not _player:
 		return
 
-	# Speed-linked shader: scan wave and glitch track player velocity
-	var speed_ratio := clampf(float(_player.speed) / 200.0, 0.0, 1.0)
+	# Speed-linked shader: scan wave and glitch track player velocity (saturates at 150 m/s)
+	var speed_ratio := clampf(float(_player.speed) / 150.0, 0.0, 1.0)
 	_mat_wall.set_shader_parameter("scan_speed", lerpf(0.3, 2.5, speed_ratio))
 	_mat_wall.set_shader_parameter("glitch_intensity", speed_ratio * speed_ratio * 0.8)
 
@@ -535,6 +535,8 @@ func _add_trail(wrapper: Node3D, color: Color) -> void:
 	# Local Z+ maps to world +tan (behind the model), so each node sits further
 	# behind the rival. Because they are children, positions update for free as
 	# the wrapper's global_transform is set each frame.
+	# Each node uses rival_trail.gdshader so color pulses and ripples over TIME.
+	var shader := load("res://shaders/rival_trail.gdshader") as Shader
 	for j in range(TRAIL_LENGTH):
 		var t := 1.0 - float(j) / float(TRAIL_LENGTH)
 		var mi := MeshInstance3D.new()
@@ -544,6 +546,11 @@ func _add_trail(wrapper: Node3D, color: Color) -> void:
 		sm.radial_segments = 4
 		sm.rings = 2
 		mi.mesh = sm
-		mi.material_override = _emit_mat(color, color, 5.5 * t)
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		mat.set_shader_parameter("base_color", color)
+		mat.set_shader_parameter("node_index", float(j))
+		mat.set_shader_parameter("emission_energy", 5.5 * t)
+		mi.material_override = mat
 		mi.position = Vector3(0.0, 0.0, float(j + 1) * TRAIL_DIST)
 		wrapper.add_child(mi)
