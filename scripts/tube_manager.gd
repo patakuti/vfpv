@@ -383,7 +383,7 @@ func _spawn_rival() -> void:
 	var dist: float = randf() * TUBE_RADIUS * 0.3
 	var offset := Vector2(cos(angle), sin(angle)) * dist
 	var node := _build_rival(rtype)
-	_add_trail(node, _trail_color(rtype))
+	_add_trail(node, _trail_color(rtype), _trail_origins(rtype))
 	add_child(node)
 	_rivals.append({
 		"type": rtype,
@@ -530,27 +530,40 @@ func _trail_color(rtype: int) -> Color:
 		RivalType.POD:   return Color(0.0, 1.0, 0.55)
 	return Color.WHITE
 
-func _add_trail(wrapper: Node3D, color: Color) -> void:
-	# Pre-create TRAIL_LENGTH glowing spheres as children of the rival wrapper.
-	# Local Z+ maps to world +tan (behind the model), so each node sits further
-	# behind the rival. Because they are children, positions update for free as
-	# the wrapper's global_transform is set each frame.
+func _trail_origins(rtype: int) -> Array:
+	match rtype:
+		RivalType.DRONE:
+			# 4 motor positions matching _build_drone() motor_offsets
+			return [Vector3(0.46, 0, 0.46), Vector3(-0.46, 0, 0.46),
+					Vector3(0.46, 0, -0.46), Vector3(-0.46, 0, -0.46)]
+		RivalType.JET:
+			# Single center exhaust matching _build_jet() exhaust ring position
+			return [Vector3(0, 0, 1.05)]
+		RivalType.POD:
+			# Left/right pod exhaust rings matching _build_pod() rear exhaust
+			return [Vector3(0.55, 0, 0.55), Vector3(-0.55, 0, 0.55)]
+	return [Vector3.ZERO]
+
+func _add_trail(wrapper: Node3D, color: Color, origins: Array) -> void:
+	# For each origin, spawn TRAIL_LENGTH glowing spheres extending in +Z (behind).
+	# As children of the wrapper, positions auto-update each frame for free.
 	# Each node uses rival_trail.gdshader so color pulses and ripples over TIME.
 	var shader := load("res://shaders/rival_trail.gdshader") as Shader
-	for j in range(TRAIL_LENGTH):
-		var t := 1.0 - float(j) / float(TRAIL_LENGTH)
-		var mi := MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = 0.22 * t
-		sm.height = sm.radius * 2.0
-		sm.radial_segments = 4
-		sm.rings = 2
-		mi.mesh = sm
-		var mat := ShaderMaterial.new()
-		mat.shader = shader
-		mat.set_shader_parameter("base_color", color)
-		mat.set_shader_parameter("node_index", float(j))
-		mat.set_shader_parameter("emission_energy", 5.5 * t)
-		mi.material_override = mat
-		mi.position = Vector3(0.0, 0.0, float(j + 1) * TRAIL_DIST)
-		wrapper.add_child(mi)
+	for origin: Vector3 in origins:
+		for j in range(TRAIL_LENGTH):
+			var t := 1.0 - float(j) / float(TRAIL_LENGTH)
+			var mi := MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = 0.22 * t
+			sm.height = sm.radius * 2.0
+			sm.radial_segments = 4
+			sm.rings = 2
+			mi.mesh = sm
+			var mat := ShaderMaterial.new()
+			mat.shader = shader
+			mat.set_shader_parameter("base_color", color)
+			mat.set_shader_parameter("node_index", float(j))
+			mat.set_shader_parameter("emission_energy", 5.5 * t)
+			mi.material_override = mat
+			mi.position = Vector3(origin.x, origin.y, origin.z + float(j + 1) * TRAIL_DIST)
+			wrapper.add_child(mi)
