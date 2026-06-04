@@ -9,12 +9,12 @@ uniform vec4 color_scan_b : source_color = vec4(1.0, 0.10, 0.90, 1.0);  // magen
 
 // Grid parameters
 uniform float grid_u_lines : hint_range(4.0, 32.0) = 16.0;  // circumferential line count
-uniform float grid_brightness : hint_range(0.0, 1.0) = 0.22;
+uniform float grid_brightness : hint_range(0.0, 1.0) = 0.14;
 
 // Scan wave parameters
 uniform float scan_period : hint_range(2.0, 32.0) = 8.0;    // length in segments per cycle
 uniform float scan_speed : hint_range(0.0, 3.0) = 0.55;     // set from GDScript to track player speed
-uniform float scan_brightness : hint_range(0.0, 2.0) = 1.1;
+uniform float scan_brightness : hint_range(0.0, 2.0) = 0.7;
 
 // Digital glitch: sparse bright cell flicker, intensity driven by player speed
 uniform float glitch_intensity : hint_range(0.0, 1.0) = 0.0;
@@ -64,7 +64,7 @@ void fragment() {
 	vec3 col = color_wall.rgb;
 	col += grid_col * grid * grid_brightness;
 	col += scan_col * scan * scan_brightness;
-	col += glitch_col * glitch * 2.0;
+	col += glitch_col * glitch * 1.3;
 	// Ring markers / spine take over, boosted slightly for glow feel
 	col = mix(col, max(col, vcol * 1.6), is_marked);
 
