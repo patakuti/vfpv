@@ -132,7 +132,12 @@ func _physics_process(delta: float) -> void:
 		velocity = horiz_fwd * current_speed
 		velocity.y = _input_handler.altitude_delta
 		if tube_manager:
-			velocity += _compute_tube_assist()
+			var assist := _compute_tube_assist()
+			if OS.is_debug_build():
+				print("[tube_assist] assist=%.2f,%.2f,%.2f vel.y_before=%.2f vel.y_after=%.2f" % [
+						assist.x, assist.y, assist.z,
+						_input_handler.altitude_delta, _input_handler.altitude_delta + assist.y])
+			velocity += assist
 	else:
 		# --- Desktop: original flight model ---
 		var pitch_in: float = _input_handler.pitch_input
@@ -449,15 +454,22 @@ func _compute_tube_assist() -> Vector3:
 
 	# Wall repulsion: only near the wall
 	var repulsion_start := TUBE_REPULSION_THRESHOLD * tube_radius
+	var repulsion_mag := 0.0
 	if dist > repulsion_start:
 		var t := (dist - repulsion_start) / (tube_radius - repulsion_start)
-		var repulsion_mag := TUBE_REPULSION_STRENGTH * t
+		repulsion_mag = TUBE_REPULSION_STRENGTH * t
 		if god_mode:
 			assist += r_hat * repulsion_mag
 		else:
 			# Non-god: vertical component only, scaled by dot product with tube_up
 			var vertical_factor := r_hat.dot(tube_up)
 			assist += tube_up * vertical_factor * repulsion_mag
+
+	if OS.is_debug_build():
+		print("[tube_assist] dist=%.2f/%.2f(%.0f%%) repulsion_mag=%.2f god=%s assist=%.2f,%.2f,%.2f" % [
+				dist, tube_radius, dist / tube_radius * 100.0,
+				repulsion_mag, str(god_mode),
+				assist.x, assist.y, assist.z])
 
 	return assist
 
