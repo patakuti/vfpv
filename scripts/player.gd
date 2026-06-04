@@ -422,8 +422,15 @@ func _tube_bounce() -> void:
 	var to_center: Vector3 = tube_center - global_position
 	if to_center.length_squared() < 0.001:
 		to_center = Vector3.UP
+	var dist_from_center: float = to_center.length()
 	to_center = to_center.normalized()
-	global_position += to_center * 1.0
+	if god_mode:
+		# Push player to 1/3 of tube radius from center
+		var target_dist: float = tube_manager.TUBE_RADIUS / 3.0
+		var push: float = max(dist_from_center - target_dist, 0.0)
+		global_position += to_center * push
+	else:
+		global_position += to_center * 1.0
 	# Orient along tube direction closest to current forward
 	var current_forward := -global_transform.basis.z
 	if current_forward.dot(tube_tan) < 0.0:
