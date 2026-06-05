@@ -573,6 +573,8 @@ func _on_command_submitted(command: String) -> void:
 					base_speed = clamp(val, MIN_SPEED, MAX_SPEED)
 					speed = base_speed
 		"reset":
+			if tube_manager:
+				tube_manager.activate(self)
 			respawn()
 		"god":
 			god_mode = not god_mode
