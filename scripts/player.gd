@@ -33,7 +33,6 @@ const GRAVITY: float = 2.0
 const BOUNCE_DAMPING: float = 0.6
 
 # Tube assist
-const TUBE_CENTERING_STRENGTH: float = 10.0   # max centering speed at wall (m/s)
 const TUBE_REPULSION_THRESHOLD: float = 0.65  # fraction of TUBE_RADIUS where repulsion starts
 const TUBE_REPULSION_STRENGTH: float = 40.0   # max repulsion speed at wall (m/s)
 const TUBE_ORIENT_RATE: float = 3.0           # god mode: orientation correction rate (1/s)
@@ -467,38 +466,25 @@ func _compute_tube_assist() -> Vector3:
 		return Vector3.ZERO
 	var r_hat := to_center / dist
 
-	# Tube "up" direction projected onto cross-section plane
+	var tube_radius: float = tube_manager.TUBE_RADIUS
+	var repulsion_start := TUBE_REPULSION_THRESHOLD * tube_radius
+	if dist <= repulsion_start:
+		return Vector3.ZERO
+
+	var t := (dist - repulsion_start) / (tube_radius - repulsion_start)
+	var repulsion_mag := TUBE_REPULSION_STRENGTH * t
+
+	if god_mode:
+		return r_hat * repulsion_mag
+
+	# Non-god: vertical component only, scaled by dot product with tube_up
 	var tube_up := Vector3.UP - Vector3.UP.dot(tube_tan) * tube_tan
 	if tube_up.length_squared() > 0.001:
 		tube_up = tube_up.normalized()
 	else:
 		tube_up = Vector3.UP
-
-	var tube_radius: float = tube_manager.TUBE_RADIUS
-
-	# Centering force: all directions, weak, proportional to distance from center
-	var assist := r_hat * TUBE_CENTERING_STRENGTH * (dist / tube_radius)
-
-	# Wall repulsion: only near the wall
-	var repulsion_start := TUBE_REPULSION_THRESHOLD * tube_radius
-	var repulsion_mag := 0.0
-	if dist > repulsion_start:
-		var t := (dist - repulsion_start) / (tube_radius - repulsion_start)
-		repulsion_mag = TUBE_REPULSION_STRENGTH * t
-		if god_mode:
-			assist += r_hat * repulsion_mag
-		else:
-			# Non-god: vertical component only, scaled by dot product with tube_up
-			var vertical_factor := r_hat.dot(tube_up)
-			assist += tube_up * vertical_factor * repulsion_mag
-
-	if OS.is_debug_build():
-		print("[tube_assist] dist=%.2f/%.2f(%.0f%%) repulsion_mag=%.2f god=%s assist=%.2f,%.2f,%.2f" % [
-				dist, tube_radius, dist / tube_radius * 100.0,
-				repulsion_mag, str(god_mode),
-				assist.x, assist.y, assist.z])
-
-	return assist
+	var vertical_factor := r_hat.dot(tube_up)
+	return tube_up * vertical_factor * repulsion_mag
 
 func _tube_bounce() -> void:
 	var info: Dictionary = tube_manager.get_tube_info_near(global_position)
