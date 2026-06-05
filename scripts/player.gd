@@ -131,13 +131,6 @@ func _physics_process(delta: float) -> void:
 			horiz_fwd = horiz_fwd.normalized()
 		velocity = horiz_fwd * current_speed
 		velocity.y = _input_handler.altitude_delta
-		if tube_manager:
-			var assist := _compute_tube_assist()
-			if OS.is_debug_build():
-				print("[tube_assist] assist=%.2f,%.2f,%.2f vel.y_before=%.2f vel.y_after=%.2f" % [
-						assist.x, assist.y, assist.z,
-						_input_handler.altitude_delta, _input_handler.altitude_delta + assist.y])
-			velocity += assist
 	else:
 		# --- Desktop: original flight model ---
 		var pitch_in: float = _input_handler.pitch_input
@@ -169,6 +162,10 @@ func _physics_process(delta: float) -> void:
 
 		velocity = -global_transform.basis.z * current_speed
 		velocity.y -= GRAVITY * delta
+
+	# Tube assist (both platforms)
+	if tube_manager:
+		velocity += _compute_tube_assist()
 
 	# Move
 	move_and_slide()
