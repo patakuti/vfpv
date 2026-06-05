@@ -32,10 +32,11 @@ const AUTO_RATE_MULTIPLIER: float = 4.0
 const GRAVITY: float = 2.0
 const BOUNCE_DAMPING: float = 0.6
 
-# Tube assist (Android only)
+# Tube assist
 const TUBE_CENTERING_STRENGTH: float = 10.0   # max centering speed at wall (m/s)
 const TUBE_REPULSION_THRESHOLD: float = 0.65  # fraction of TUBE_RADIUS where repulsion starts
 const TUBE_REPULSION_STRENGTH: float = 40.0   # max repulsion speed at wall (m/s)
+const TUBE_ORIENT_RATE: float = 3.0           # god mode: orientation correction rate (1/s)
 
 # FOV
 const FOV_MIN: float = 80.0
@@ -166,6 +167,8 @@ func _physics_process(delta: float) -> void:
 	# Tube assist (both platforms)
 	if tube_manager:
 		velocity += _compute_tube_assist()
+		if god_mode:
+			_apply_tube_god_orientation(delta)
 
 	# Move
 	move_and_slide()
@@ -423,6 +426,33 @@ func _bounce() -> void:
 		var active_cam = get_viewport().get_camera_3d()
 		if active_cam:
 			post_process.shake(active_cam, 0.2, 0.15)
+
+func _apply_tube_god_orientation(delta: float) -> void:
+	var info: Dictionary = tube_manager.get_tube_info_near(global_position)
+	var tube_center: Vector3 = info["center"]
+	var tube_tan: Vector3 = info["tangent"]
+
+	# Radial distance in cross-section plane
+	var to_center := tube_center - global_position
+	to_center -= tube_tan * to_center.dot(tube_tan)
+	var dist := to_center.length()
+	var tube_radius := float(tube_manager.TUBE_RADIUS)
+	var repulsion_start := TUBE_REPULSION_THRESHOLD * tube_radius
+	if dist <= repulsion_start:
+		return
+
+	var t := (dist - repulsion_start) / (tube_radius - repulsion_start)
+
+	# Choose tube direction closest to current forward
+	var current_forward := -global_transform.basis.z
+	if current_forward.dot(tube_tan) < 0.0:
+		tube_tan = -tube_tan
+
+	# Smoothly rotate toward tube tangent, stronger near wall
+	var blend := minf(t * TUBE_ORIENT_RATE * delta, 1.0)
+	var new_forward := current_forward.lerp(tube_tan, blend).normalized()
+	if new_forward.length_squared() > 0.001 and abs(new_forward.dot(Vector3.UP)) < 0.999:
+		look_at(global_position + new_forward, Vector3.UP)
 
 func _compute_tube_assist() -> Vector3:
 	var info: Dictionary = tube_manager.get_tube_info_near(global_position)
