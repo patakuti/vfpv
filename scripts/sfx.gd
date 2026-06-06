@@ -17,12 +17,23 @@ var _boost_playback: AudioStreamGeneratorPlayback
 var _boost_phase: float = 0.0
 var _boost_active: bool = false
 
+# Drone propeller sound
+var _drone_player: AudioStreamPlayer
+var _drone_enabled: bool = false
+var _drone_smooth_power: float = 0.3   # smoothed motor_power to avoid abrupt pitch jumps
+var _drone_phases: Array[float] = [0.0, 0.0, 0.0, 0.0]
+const DRONE_FREQ_OFFSETS: Array[float] = [1.00, 1.02, 0.98, 1.01]  # per-motor pitch variation
+const DRONE_POWER_SMOOTH: float = 4.0  # how fast motor power tracks (1/s)
+const DRONE_FREQ_MIN: float = 60.0     # Hz at minimum motor power
+const DRONE_FREQ_MAX: float = 240.0    # Hz at full motor power
+
 var player: CharacterBody3D
 
 func setup(p_player: CharacterBody3D) -> void:
 	player = p_player
 	_crash_player = _create_generator_player(-6.0)
 	_boost_player = _create_generator_player(-14.0)
+	_drone_player = _create_generator_player(-4.0)
 
 func _create_generator_player(volume_db: float) -> AudioStreamPlayer:
 	var stream := AudioStreamGenerator.new()
@@ -42,6 +53,7 @@ func _process(delta: float) -> void:
 
 	_process_crash(delta)
 	_process_boost(delta)
+	_process_drone(delta)
 
 # --- Crash: noise burst with exponential decay ---
 
@@ -100,3 +112,37 @@ func _process_boost(_delta: float) -> void:
 
 # --- Wind: bandpass noise linked to pitch input ---
 
+# --- Drone: 4-motor propeller sound with pitch tied to motor power ---
+
+func set_drone_enabled(enabled: bool) -> void:
+	_drone_enabled = enabled
+
+func _process_drone(delta: float) -> void:
+	var playback := _drone_player.get_stream_playback() as AudioStreamGeneratorPlayback
+	if not playback:
+		return
+
+	var frames := playback.get_frames_available()
+	if not _drone_enabled:
+		for i in range(frames):
+			playback.push_frame(Vector2.ZERO)
+		_drone_smooth_power = 0.3
+		return
+
+	_drone_smooth_power = lerpf(_drone_smooth_power, player.motor_power, DRONE_POWER_SMOOTH * delta)
+	var base_freq := lerpf(DRONE_FREQ_MIN, DRONE_FREQ_MAX, _drone_smooth_power)
+	var dt := 1.0 / MIX_RATE
+
+	for _f in range(frames):
+		var sample := 0.0
+		for i in range(4):
+			var freq := base_freq * DRONE_FREQ_OFFSETS[i]
+			_drone_phases[i] += freq * dt
+			if _drone_phases[i] >= 1.0:
+				_drone_phases[i] -= 1.0
+			var p := _drone_phases[i] * TAU
+			sample += sin(p) * 0.12           # fundamental
+			sample += sin(p * 2.0) * 0.06     # 2nd harmonic
+			sample += sin(p * 3.0) * 0.03     # 3rd harmonic
+			sample += randf_range(-1.0, 1.0) * 0.008  # air turbulence noise
+		playback.push_frame(Vector2(sample, sample))
