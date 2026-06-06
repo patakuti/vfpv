@@ -76,6 +76,9 @@ See [ANDROID.md](ANDROID.md).
 | `:stage canyon` | Switch to canyon stage |
 | `:stage tube` | Switch to tube tunnel stage |
 | `:quality low/mid/high/auto` | Set rendering quality (default: auto) |
+| `:audio music` | BGM music |
+| `:audio drone` | Drone propeller sound (pitch linked to motor output) |
+| `:audio off` | Mute all sound |
 | `:quit` or `:q` | Quit game |
 | `Escape` | Cancel and return to normal mode |
 

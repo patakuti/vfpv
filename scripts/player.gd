@@ -56,6 +56,9 @@ var main: Node  # set by main.gd
 # God mode
 var god_mode: bool = false
 
+# Motor power (0.0 = stopped, 1.0 = full throttle) — read by sfx.gd for drone sound
+var motor_power: float = 0.3
+
 # Stage context (set by stage managers)
 var tube_manager: Node = null
 
@@ -108,6 +111,7 @@ func _physics_process(delta: float) -> void:
 		prop.rotate_y(PROP_SPIN_SPEED * delta)
 
 	if _is_crashed:
+		motor_power = 0.0
 		if sfx:
 			sfx.set_boost_active(false)
 		return
@@ -191,6 +195,18 @@ func _physics_process(delta: float) -> void:
 		var active_cam = get_viewport().get_camera_3d()
 		if active_cam:
 			active_cam.fov = lerp(FOV_MIN, FOV_MAX, speed_ratio)
+
+	# Motor power: altitude_delta (Android throttle) is the primary driver; speed adds drag load
+	var yaw_factor := clampf(absf(yaw_in), 0.0, 1.0) * 0.15
+	if _is_android:
+		# altitude_delta is -60..+60; /20 makes moderate touches reach full range
+		var alt_ratio := clampf(_input_handler.altitude_delta / 20.0, -1.0, 1.0)
+		motor_power = clampf(0.3 + alt_ratio * 0.6 + speed_ratio * 0.1 + yaw_factor, 0.0, 1.0)
+	else:
+		# No throttle on desktop — use velocity.y (pitch up = climb = more motor power)
+		var vy_ratio := clampf(velocity.y / maxf(speed * 0.85, 20.0), -1.0, 1.0)
+		var boost_mult := 1.2 if is_boosting else 1.0
+		motor_power = clampf((0.4 + vy_ratio * 0.4 + speed_ratio * 0.2) * boost_mult + yaw_factor, 0.0, 1.0)
 
 	# Bank
 	var abs_yaw := absf(yaw_in)
@@ -595,5 +611,10 @@ func _on_command_submitted(command: String) -> void:
 			var hud = get_node("/root/Main/HUD")
 			if hud:
 				hud.debug_mode = not hud.debug_mode
+		"audio":
+			if parts.size() >= 2 and parts[1] in ["music", "drone", "off"]:
+				SettingsManager.audio_mode = parts[1]
+				SettingsManager.save_settings()
+				SettingsManager.apply_to_game(self, main)
 		"quit", "q":
 			get_tree().quit()

@@ -13,7 +13,7 @@ var _stage_option: OptionButton
 var _quality_option: OptionButton
 var _god_check: Button
 var _camera_option: OptionButton
-var _bgm_mute_check: Button
+var _audio_mode_option: OptionButton
 
 var _ui_scale: float = 1.0
 var _FONT_TITLE: int = 36
@@ -144,16 +144,23 @@ func _build_ui() -> void:
 	god_row.add_child(god_lbl)
 	_god_check = _make_toggle(god_row)
 
-	var bgm_row := HBoxContainer.new()
-	bgm_row.add_theme_constant_override("separation", 16)
-	vbox.add_child(bgm_row)
-	var bgm_lbl := Label.new()
-	bgm_lbl.text = "Mute BGM"
-	bgm_lbl.add_theme_font_size_override("font_size", _FONT_ITEM)
-	bgm_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bgm_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	bgm_row.add_child(bgm_lbl)
-	_bgm_mute_check = _make_toggle(bgm_row)
+	var audio_row := HBoxContainer.new()
+	audio_row.add_theme_constant_override("separation", 16)
+	vbox.add_child(audio_row)
+	var audio_lbl := Label.new()
+	audio_lbl.text = "Sound"
+	audio_lbl.add_theme_font_size_override("font_size", _FONT_ITEM)
+	audio_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	audio_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	audio_row.add_child(audio_lbl)
+	_audio_mode_option = OptionButton.new()
+	_audio_mode_option.custom_minimum_size = Vector2(int(220 * _ui_scale), _ROW_H)
+	_audio_mode_option.add_theme_font_size_override("font_size", _FONT_ITEM)
+	_audio_mode_option.add_item("Music")
+	_audio_mode_option.add_item("Drone Sound")
+	_audio_mode_option.add_item("Off")
+	audio_row.add_child(_audio_mode_option)
+	_audio_mode_option.get_popup().add_theme_font_size_override("font_size", _FONT_ITEM)
 
 	var cam_row := HBoxContainer.new()
 	cam_row.add_theme_constant_override("separation", 16)
@@ -253,8 +260,9 @@ func _sync_from_settings() -> void:
 
 	_god_check.button_pressed = SettingsManager.god_mode
 	_god_check.text = "ON" if SettingsManager.god_mode else "OFF"
-	_bgm_mute_check.button_pressed = SettingsManager.bgm_muted
-	_bgm_mute_check.text = "ON" if SettingsManager.bgm_muted else "OFF"
+	var audio_modes := ["music", "drone", "off"]
+	var ai := audio_modes.find(SettingsManager.audio_mode)
+	_audio_mode_option.selected = ai if ai >= 0 else 0
 
 	var cameras := ["fpv", "follow"]
 	var ci := cameras.find(SettingsManager.camera_mode)
@@ -296,7 +304,8 @@ func _apply_and_save() -> void:
 	SettingsManager.quality = qualities[_quality_option.selected]
 
 	SettingsManager.god_mode = _god_check.button_pressed
-	SettingsManager.bgm_muted = _bgm_mute_check.button_pressed
+	var audio_modes := ["music", "drone", "off"]
+	SettingsManager.audio_mode = audio_modes[_audio_mode_option.selected]
 
 	var cameras := ["fpv", "follow"]
 	SettingsManager.camera_mode = cameras[_camera_option.selected]
