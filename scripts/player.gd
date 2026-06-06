@@ -197,11 +197,16 @@ func _physics_process(delta: float) -> void:
 			active_cam.fov = lerp(FOV_MIN, FOV_MAX, speed_ratio)
 
 	# Motor power: altitude_delta (Android throttle) is the primary driver; speed adds drag load
+	var yaw_factor := clampf(absf(yaw_in), 0.0, 1.0) * 0.15
 	if _is_android:
-		var alt_ratio := clampf(_input_handler.altitude_delta / 60.0, -1.0, 1.0)
-		motor_power = clampf(0.4 + alt_ratio * 0.4 + speed_ratio * 0.2, 0.0, 1.0)
+		# altitude_delta is -60..+60; /20 makes moderate touches reach full range
+		var alt_ratio := clampf(_input_handler.altitude_delta / 20.0, -1.0, 1.0)
+		motor_power = clampf(0.3 + alt_ratio * 0.6 + speed_ratio * 0.1 + yaw_factor, 0.0, 1.0)
 	else:
-		motor_power = clampf((0.2 + speed_ratio * 0.6) * (1.25 if is_boosting else 1.0), 0.0, 1.0)
+		# No throttle on desktop — use velocity.y (pitch up = climb = more motor power)
+		var vy_ratio := clampf(velocity.y / maxf(speed * 0.85, 20.0), -1.0, 1.0)
+		var boost_mult := 1.2 if is_boosting else 1.0
+		motor_power = clampf((0.4 + vy_ratio * 0.4 + speed_ratio * 0.2) * boost_mult + yaw_factor, 0.0, 1.0)
 
 	# Bank
 	var abs_yaw := absf(yaw_in)

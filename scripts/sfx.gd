@@ -22,10 +22,10 @@ var _drone_player: AudioStreamPlayer
 var _drone_enabled: bool = false
 var _drone_smooth_power: float = 0.3   # smoothed motor_power to avoid abrupt pitch jumps
 var _drone_phases: Array[float] = [0.0, 0.0, 0.0, 0.0]
-const DRONE_FREQ_OFFSETS: Array[float] = [1.00, 1.02, 0.98, 1.01]  # per-motor pitch variation
-const DRONE_POWER_SMOOTH: float = 4.0  # how fast motor power tracks (1/s)
-const DRONE_FREQ_MIN: float = 60.0     # Hz at minimum motor power
-const DRONE_FREQ_MAX: float = 240.0    # Hz at full motor power
+const DRONE_FREQ_OFFSETS: Array[float] = [1.00, 1.03, 0.97, 1.015]  # per-motor pitch variation
+const DRONE_POWER_SMOOTH: float = 8.0  # how fast motor power tracks (1/s)
+const DRONE_FREQ_MIN: float = 500.0    # Hz at minimum motor power
+const DRONE_FREQ_MAX: float = 1800.0   # Hz at full motor power (harmonics reach 5400 Hz)
 
 var player: CharacterBody3D
 
@@ -141,8 +141,9 @@ func _process_drone(delta: float) -> void:
 			if _drone_phases[i] >= 1.0:
 				_drone_phases[i] -= 1.0
 			var p := _drone_phases[i] * TAU
-			sample += sin(p) * 0.12           # fundamental
-			sample += sin(p * 2.0) * 0.06     # 2nd harmonic
-			sample += sin(p * 3.0) * 0.03     # 3rd harmonic
-			sample += randf_range(-1.0, 1.0) * 0.008  # air turbulence noise
-		playback.push_frame(Vector2(sample, sample))
+			sample += sin(p) * 0.04           # fundamental (抑える)
+			sample += sin(p * 2.0) * 0.11     # 2nd harmonic (キーンの主成分)
+			sample += sin(p * 3.0) * 0.08     # 3rd harmonic
+			sample += sin(p * 4.0) * 0.05     # 4th harmonic
+			sample += sin(p * 5.0) * 0.02     # 5th harmonic
+		playback.push_frame(Vector2(clampf(sample, -1.0, 1.0), clampf(sample, -1.0, 1.0)))
