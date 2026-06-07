@@ -61,6 +61,8 @@ func switch_stage(stage_name: String) -> void:
 			city.deactivate()
 			tube.deactivate()
 			canyon.activate(player)
+			var safe_pos: Vector3 = canyon.find_safe_spawn()
+			player.set_spawn(safe_pos, Vector3.ZERO)
 		"tube":
 			terrain.deactivate()
 			city.deactivate()

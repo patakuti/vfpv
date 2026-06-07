@@ -28,6 +28,13 @@ const DETAIL_FREQUENCY: float = 0.05
 const STRATUM_WAVELENGTH: float = 18.0
 const STRATUM_STRENGTH: float = 0.12
 
+# Safe-spawn search parameters
+const SPAWN_ALTITUDE: float = 12.0       # meters above terrain at spawn
+const VALLEY_CLIFF_T_MAX: float = 0.1    # cliff_t threshold below which terrain is "safe"
+const CORRIDOR_DEPTH: float = 300.0      # check this far ahead (-Z) for obstacles (~3.75s at 80m/s)
+const CORRIDOR_STEPS: int = 15           # sample every ~20m along the corridor
+const CORRIDOR_HALF_WIDTH: float = 15.0  # check 3 lanes: -width, center, +width
+
 var render_distance: int = 4
 var mesh_resolution: int = 32
 var chunks_per_frame: int = 2
@@ -157,6 +164,46 @@ func _process(delta: float) -> void:
 		_active_chunks[key].queue_free()
 		_active_chunks.erase(key)
 
+func _sample_cliff_t(wx: float, wz: float) -> float:
+	var n := _noise.get_noise_2d(wx, wz)
+	var raw01: float = clamp((n + 1.0) * 0.5, 0.0, 1.0)
+	return clamp((raw01 - CLIFF_LOW) / (CLIFF_HIGH - CLIFF_LOW), 0.0, 1.0)
+
+func _sample_height(wx: float, wz: float) -> float:
+	var cliff_t := _sample_cliff_t(wx, wz)
+	var h: float = cliff_t * HEIGHT_AMPLITUDE
+	h += _detail_noise.get_noise_2d(wx, wz) * lerp(VALLEY_DETAIL_AMP, PLATEAU_DETAIL_AMP, cliff_t)
+	return h
+
+# Returns true if spawn_x/spawn_z and the forward corridor (-Z) are all valley terrain.
+func _is_safe_corridor(spawn_x: float, spawn_z: float) -> bool:
+	var step: float = CORRIDOR_DEPTH / CORRIDOR_STEPS
+	for i in range(CORRIDOR_STEPS + 1):
+		var dz: float = i * step
+		for dx in [-CORRIDOR_HALF_WIDTH, 0.0, CORRIDOR_HALF_WIDTH]:
+			if _sample_cliff_t(spawn_x + dx, spawn_z - dz) > VALLEY_CLIFF_T_MAX:
+				return false
+	return true
+
+# Spiral search from origin for a valley position with an open corridor ahead.
+func find_safe_spawn() -> Vector3:
+	var search_step: float = 20.0
+	var max_rings: int = 25
+	for ring in range(max_rings + 1):
+		var candidates: Array[Vector2] = []
+		if ring == 0:
+			candidates.append(Vector2.ZERO)
+		else:
+			var r: float = ring * search_step
+			var pts: int = maxi(8, ring * 4)
+			for i in range(pts):
+				var angle: float = i * TAU / pts
+				candidates.append(Vector2(cos(angle) * r, sin(angle) * r))
+		for c in candidates:
+			if _is_safe_corridor(c.x, c.y):
+				return Vector3(c.x, _sample_height(c.x, c.y) + SPAWN_ALTITUDE, c.y)
+	return Vector3(0.0, SPAWN_ALTITUDE, 0.0)
+
 func _height_color(h: float) -> Color:
 	# Valley floor (red-brown) → mid slope (orange) → ridge top (sandy)
 	var low := Color(0.70, 0.32, 0.18)
@@ -197,14 +244,7 @@ func _create_chunk(coord: Vector2i) -> void:
 			var world_x := coord.x * CHUNK_SIZE + x * step
 			var world_z := coord.y * CHUNK_SIZE + z * step
 
-			# FBM noise [-1,1] → [0,1]; two-threshold cliff shapes mesas.
-			var n := _noise.get_noise_2d(world_x, world_z)
-			var raw01: float = clamp((n + 1.0) * 0.5, 0.0, 1.0)
-			var cliff_t: float = clamp((raw01 - CLIFF_LOW) / (CLIFF_HIGH - CLIFF_LOW), 0.0, 1.0)
-			var h: float = cliff_t * HEIGHT_AMPLITUDE
-			# Micro-bumps: stronger on plateau (weathered rock top), weaker in valley
-			var detail_amp: float = lerp(VALLEY_DETAIL_AMP, PLATEAU_DETAIL_AMP, cliff_t)
-			h += _detail_noise.get_noise_2d(world_x, world_z) * detail_amp
+			var h: float = _sample_height(world_x, world_z)
 
 			var idx := z * (mesh_resolution + 1) + x
 			heights[idx] = h
