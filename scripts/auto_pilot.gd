@@ -7,6 +7,8 @@ const FAN_ANGLE_H: float = 15.0  # degrees between horizontal rays (total ±60°
 const FAN_ANGLE_V: float = 15.0  # degrees between vertical rays
 const REACTION_TIME: float = 1.2 # seconds ahead to detect
 const SMOOTHING: float = 6.0     # lerp speed (higher = faster response)
+const AVOIDANCE_FULL_SPEED: float = 200.0  # speed at which avoidance authority reaches 100%
+const AVOIDANCE_MIN_SCALE: float = 0.25    # authority floor at minimum speed
 
 # Avoidance output (read by player)
 var auto_yaw: float = 0.0    # -1..+1
@@ -81,9 +83,21 @@ func _physics_process(delta: float) -> void:
 		ray.target_position = ray.get_meta("base_dir") * ray_length
 
 	# Calculate target avoidance values
+	var prev_yaw := _target_yaw
 	_target_yaw = 0.0
 	_target_pitch = 0.0
 	_calc_avoidance(ray_length)
+
+	# Damp oscillation: when yaw direction reverses, average with previous target.
+	# Consistent avoidance (no reversal) is unaffected.
+	if prev_yaw != 0.0 and _target_yaw != 0.0 and sign(_target_yaw) != sign(prev_yaw):
+		_target_yaw = (prev_yaw + _target_yaw) * 0.5
+
+	# Scale avoidance authority by speed: full at AVOIDANCE_FULL_SPEED, reduced at low speed.
+	var speed_ratio: float = clamp(_player.speed / AVOIDANCE_FULL_SPEED, 0.0, 1.0)
+	var avoidance_scale: float = lerp(AVOIDANCE_MIN_SCALE, 1.0, speed_ratio)
+	_target_yaw   *= avoidance_scale
+	_target_pitch *= avoidance_scale
 
 	# Manual pitch input cancels return-to-level
 	var vi_input: Node = _player.get_node("ViInput")
