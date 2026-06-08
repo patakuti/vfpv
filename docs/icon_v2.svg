@@ -1,0 +1,209 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Sky: sky_top_color(0.3,0.55,1.0) → sky_horizon_color(0.65,0.82,1.0) -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#4D8CFF"/>
+      <stop offset="72%" stop-color="#A6D1FF"/>
+      <stop offset="100%" stop-color="#C2DCFF"/>
+    </linearGradient>
+    <!-- Prop blur: prop_mat Color(0.6,0.6,0.65,0.35) -->
+    <radialGradient id="prop" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#9999A6" stop-opacity="0.42"/>
+      <stop offset="75%"  stop-color="#9999A6" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#9999A6" stop-opacity="0.04"/>
+    </radialGradient>
+    <!-- Drop shadow for drone body -->
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="7"
+                    flood-color="#000822" flood-opacity="0.50"/>
+    </filter>
+  </defs>
+
+  <!-- ── Sky ── -->
+  <rect width="512" height="512" fill="url(#sky)"/>
+
+  <!-- ── Far mountains: mountain_color low = Color(0.4,0.3,0.7) → #6650B3
+       Jagged polygon, no smooth curves (粗め)                          ── -->
+  <polygon points="
+    0,355
+    22,290  44,307  66,270  88,287
+    110,258 132,275 154,252 176,268
+    198,247 220,263 242,243 264,261
+    286,242 308,259 330,240 352,257
+    374,244 396,261 418,248 440,264
+    462,250 484,262 512,254
+    512,355
+  " fill="#5C4499"/>
+  <!-- Snow caps: mountain_color high Color(0.9,0.9,1.0) → #E6E6FF -->
+  <polygon points="110,258 123,277  97,277" fill="#E6E6FF"/>
+  <polygon points="198,247 213,268 183,268" fill="#E6E6FF"/>
+  <polygon points="286,242 303,264 269,264" fill="#E6E6FF"/>
+  <polygon points="374,244 390,265 358,265" fill="#E6E6FF"/>
+
+  <!-- ── Mid mountains: lighter purple, lower peaks ── -->
+  <polygon points="
+    0,372
+    28,318  56,332  84,312
+    112,326 140,312 168,326 196,314
+    224,328 252,315 280,328 308,316
+    336,329 364,317 392,329 420,317
+    448,329 480,318 512,312
+    512,372
+  " fill="#7A6AB8"/>
+
+  <!-- ── Near hills: normal_color lerp, dark green ── -->
+  <polygon points="
+    0,408
+    42,362  84,377 126,357
+    168,372 210,358 252,372
+    294,359 336,373 378,361
+    420,375 462,363 512,368
+    512,408
+  " fill="#1A6B24"/>
+
+  <!-- ── Foreground: normal_color low Color(0.0,0.3,0.05) → #004D0D ── -->
+  <rect x="0" y="398" width="512" height="114" fill="#0A4010"/>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       DRONE  top-down view  scale=115 px/unit  center=(256,178)
+       Godot forward = -Z = UP in icon
+
+       Motor positions (±0.55 * 115 = ±63 from center):
+         TL front-left  = (193, 115)   blue LED
+         TR front-right = (319, 115)   blue LED
+         BL rear-left   = (193, 241)   red  LED
+         BR rear-right  = (319, 241)   red  LED
+
+       Prop disc radius   = 0.22*115 = 25 px
+       Guard ring radius  = 0.265*115 = 30 px (octagon)
+       Motor housing r    = 0.095*115 = 11 px
+       LED ring r         = 0.075*115 = 9 px
+       Arm width          = 0.07*115  = 8 px
+
+       Body (0.45 w × 0.55 d):
+         x: 256±26 = 230…282
+         y: 178±32 = 146…210
+  ══════════════════════════════════════════════════════════════ -->
+
+  <!-- Spinning prop discs (under everything) -->
+  <circle cx="193" cy="115" r="25" fill="url(#prop)"/>
+  <circle cx="319" cy="115" r="25" fill="url(#prop)"/>
+  <circle cx="193" cy="241" r="25" fill="url(#prop)"/>
+  <circle cx="319" cy="241" r="25" fill="url(#prop)"/>
+
+  <!-- Prop guard octagon: guard_mat Color(0.12,0.12,0.15) → #1F1F26
+       R=30, vertices at 0°/45°/90°/135°/180°/225°/270°/315°
+       cx+R*cos, cy+R*sin with flat-top orientation (0°=top)          -->
+  <!-- TL (193,115) -->
+  <polygon
+    points="193,85 214,94 223,115 214,136 193,145 172,136 163,115 172,94"
+    fill="none" stroke="#1F1F26" stroke-width="6" stroke-linejoin="miter"/>
+  <!-- TR (319,115) -->
+  <polygon
+    points="319,85 340,94 349,115 340,136 319,145 298,136 289,115 298,94"
+    fill="none" stroke="#1F1F26" stroke-width="6" stroke-linejoin="miter"/>
+  <!-- BL (193,241) -->
+  <polygon
+    points="193,211 214,220 223,241 214,262 193,271 172,262 163,241 172,220"
+    fill="none" stroke="#1F1F26" stroke-width="6" stroke-linejoin="miter"/>
+  <!-- BR (319,241) -->
+  <polygon
+    points="319,211 340,220 349,241 340,262 319,271 298,262 289,241 298,220"
+    fill="none" stroke="#1F1F26" stroke-width="6" stroke-linejoin="miter"/>
+
+  <!-- Drone arms + body + details (with drop shadow) -->
+  <g filter="url(#shadow)">
+
+    <!-- X-frame arms: carbon_mat Color(0.10,0.10,0.13) → #1A1A21
+         Two crossing bars at ±45°, square caps for rough look          -->
+    <line x1="193" y1="115" x2="319" y2="241"
+          stroke="#1A1A21" stroke-width="9" stroke-linecap="square"/>
+    <line x1="319" y1="115" x2="193" y2="241"
+          stroke="#1A1A21" stroke-width="9" stroke-linecap="square"/>
+    <!-- Reinforcement ribs: dark_metal → #2E2E38, narrower on top -->
+    <line x1="193" y1="115" x2="319" y2="241"
+          stroke="#2E2E38" stroke-width="4" stroke-linecap="square"/>
+    <line x1="319" y1="115" x2="193" y2="241"
+          stroke="#2E2E38" stroke-width="4" stroke-linecap="square"/>
+
+    <!-- Main chassis: carbon_mat #1A1A21 (0.45×0.55 → 52×63 px) -->
+    <rect x="230" y="147" width="52" height="63" fill="#1A1A21"/>
+    <!-- Bottom plate: dark_metal #2E2E38 (0.35×0.40 → 40×46 px) -->
+    <rect x="236" y="152" width="40" height="52" fill="#2E2E38"/>
+
+    <!-- Raised center spine (0.08 w × 0.48 d → 9×55 px), along Z-axis -->
+    <rect x="252" y="147" width="9" height="63" fill="#2E2E38"/>
+    <!-- Side armor plates (each 0.12 w × 0.40 d → 14×46 px) -->
+    <rect x="230" y="152" width="14" height="52" fill="#2E2E38"/>
+    <rect x="268" y="152" width="14" height="52" fill="#2E2E38"/>
+    <!-- Outer carbon layer on armor (8×40 px) -->
+    <rect x="230" y="155" width="9"  height="44" fill="#1A1A21"/>
+    <rect x="273" y="155" width="9"  height="44" fill="#1A1A21"/>
+
+    <!-- Heat-sink fins on spine: 5 fins -->
+    <rect x="249" y="150" width="7" height="1" fill="#2E2E38"/>
+    <rect x="249" y="155" width="7" height="1" fill="#2E2E38"/>
+    <rect x="249" y="160" width="7" height="1" fill="#2E2E38"/>
+    <rect x="249" y="165" width="7" height="1" fill="#2E2E38"/>
+    <rect x="249" y="170" width="7" height="1" fill="#2E2E38"/>
+
+    <!-- FC box (flight controller) at z=+0.06: y=178+7=185
+         0.10w×0.12d → 12×14 px, centered at x=256                    -->
+    <rect x="250" y="178" width="12" height="14" fill="#2E2E38"/>
+    <!-- FC blue accent lines: accent_blue Color(0.0,0.6,1.0) → #0099FF -->
+    <rect x="249" y="178" width="14" height="2" fill="#0099FF"/>
+    <rect x="249" y="191" width="14" height="2" fill="#0099FF"/>
+    <!-- FC top plate -->
+    <rect x="252" y="181" width="8"  height="9"  fill="#262633"/>
+
+    <!-- ESC stack at z=-0.18: y=178-21=157, 8×10 px -->
+    <rect x="252" y="151" width="8" height="10" fill="#2E2E38"/>
+    <!-- ESC blue accent -->
+    <rect x="253" y="152" width="6" height="2"  fill="#0099FF"/>
+
+    <!-- Front nose: 0.30×0.08 → 35×9 px at z=-0.30 (y=178-34=144) -->
+    <rect x="239" y="139" width="34" height="9" fill="#1A1A21"/>
+
+    <!-- Camera gimbal mount: 0.10×0.10 → 12×12 px at z=-0.35 (y=178-40=138) -->
+    <rect x="250" y="131" width="12" height="12" fill="#2E2E38"/>
+    <!-- Camera lens: dark with blue tint -->
+    <rect x="252" y="133" width="8"  height="8"  fill="#080812"/>
+    <rect x="254" y="135" width="4"  height="4"  fill="#0066CC" fill-opacity="0.6"/>
+
+    <!-- Side blue LED strips: 3×46 px at x=229 and x=280 -->
+    <rect x="227" y="154" width="3" height="46" fill="#0099FF" opacity="0.90"/>
+    <rect x="282" y="154" width="3" height="46" fill="#0099FF" opacity="0.90"/>
+
+    <!-- Rear receiver box: 14×9 px at z=+0.20 (y=178+23=201) -->
+    <rect x="249" y="199" width="14" height="9"  fill="#2E2E38"/>
+
+    <!-- Rear red LED bar: 0.20×0.025 → 23×3 px at z=+0.29 (y=178+33=211)
+         accent_red Color(1.0,0.1,0.1) → #FF1A1A                       -->
+    <rect x="244" y="210" width="24" height="3" fill="#FF1A1A"/>
+
+    <!-- Rear antennas: two 2×17 px masts at z=+0.22 (y=178+25=203)
+         x = 256 ± 0.08*115 = 256 ± 9 → 247 and 265                   -->
+    <rect x="246" y="203" width="2" height="17" fill="#2E2E38"/>
+    <rect x="264" y="203" width="2" height="17" fill="#2E2E38"/>
+    <!-- Antenna tips: red -->
+    <rect x="246" y="217" width="2" height="3"  fill="#FF1A1A"/>
+    <rect x="264" y="217" width="2" height="3"  fill="#FF1A1A"/>
+
+    <!-- Motor housings: r=11 dark_metal -->
+    <circle cx="193" cy="115" r="11" fill="#2E2E38"/>
+    <circle cx="319" cy="115" r="11" fill="#2E2E38"/>
+    <circle cx="193" cy="241" r="11" fill="#2E2E38"/>
+    <circle cx="319" cy="241" r="11" fill="#2E2E38"/>
+    <!-- Motor body: r=8 motor_mat Color(0.15,0.15,0.2) → #262633 -->
+    <circle cx="193" cy="115" r="8"  fill="#262633"/>
+    <circle cx="319" cy="115" r="8"  fill="#262633"/>
+    <circle cx="193" cy="241" r="8"  fill="#262633"/>
+    <circle cx="319" cy="241" r="8"  fill="#262633"/>
+    <!-- LED rings: front=blue, rear=red (r=9, stroke only) -->
+    <circle cx="193" cy="115" r="9"  fill="none" stroke="#0099FF" stroke-width="2.5"/>
+    <circle cx="319" cy="115" r="9"  fill="none" stroke="#0099FF" stroke-width="2.5"/>
+    <circle cx="193" cy="241" r="9"  fill="none" stroke="#FF1A1A" stroke-width="2.5"/>
+    <circle cx="319" cy="241" r="9"  fill="none" stroke="#FF1A1A" stroke-width="2.5"/>
+
+  </g>
+</svg>
