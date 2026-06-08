@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Sky gradient: sky_top_color -> sky_horizon_color from main.tscn -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#4D8CFF"/>
+      <stop offset="70%"  stop-color="#A6D1FF"/>
+      <stop offset="100%" stop-color="#C5E0FF"/>
+    </linearGradient>
+
+    <!-- Rotor disc: translucent white spin blur -->
+    <radialGradient id="rotor" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.07"/>
+    </radialGradient>
+
+    <!-- Drop shadow for drone -->
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7"
+                    flood-color="#001040" flood-opacity="0.38"/>
+    </filter>
+  </defs>
+
+  <!-- ── Sky background ── -->
+  <rect width="512" height="512" fill="url(#sky)"/>
+
+  <!-- ── Far mountains: mountain_color low = Color(0.4,0.3,0.7) → #664DB3 ── -->
+  <path d="
+    M0,360
+    L40,278 L78,303 L125,258 L168,288
+    L210,250 L252,272 L294,244 L337,268
+    L378,248 L420,265 L462,250 L512,258
+    L512,360 Z"
+    fill="#5C4499"/>
+  <!-- Snow caps: mountain_color high = Color(0.9,0.9,1.0) → #E6E6FF -->
+  <path d="M125,258 L141,281 L109,281 Z" fill="#E8E8F8"/>
+  <path d="M210,250 L229,276 L191,276 Z" fill="#E8E8F8"/>
+  <path d="M294,244 L315,273 L273,273 Z" fill="#E8E8F8"/>
+  <path d="M378,248 L397,273 L359,273 Z" fill="#E8E8F8"/>
+
+  <!-- ── Mid-range mountains: slightly lighter purple ── -->
+  <path d="
+    M0,378
+    L48,325 L92,348 L138,315 L182,338
+    L226,318 L268,334 L310,316 L355,334
+    L398,318 L442,333 L512,320
+    L512,378 Z"
+    fill="#7A6AB8"/>
+
+  <!-- ── Near hills: normal_color lerp = dark to bright green ── -->
+  <path d="
+    M0,415
+    L55,364 L108,385 L162,358 L215,378
+    L268,360 L322,378 L375,362 L428,378
+    L512,365 L512,415 Z"
+    fill="#1A6B24"/>
+
+  <!-- ── Foreground: normal_color low = Color(0.0,0.3,0.05) → #004D0D ── -->
+  <rect x="0" y="405" width="512" height="107" fill="#0A4010"/>
+  <path d="M0,405 Q256,390 512,402 L512,420 Q256,435 0,420 Z"
+        fill="#145018"/>
+
+  <!-- ── Drone (X-frame, top-down) ──
+       Center: (256, 168)
+       Arm half-length 60px at 45°: dx=dy=42
+       Motors: TL(214,126) TR(298,126) BL(214,210) BR(298,210)
+  -->
+  <!-- Rotor spinning discs -->
+  <circle cx="214" cy="126" r="33" fill="url(#rotor)"/>
+  <circle cx="298" cy="126" r="33" fill="url(#rotor)"/>
+  <circle cx="214" cy="210" r="33" fill="url(#rotor)"/>
+  <circle cx="298" cy="210" r="33" fill="url(#rotor)"/>
+  <!-- Rotor edge rings -->
+  <circle cx="214" cy="126" r="31" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-opacity="0.45"/>
+  <circle cx="298" cy="126" r="31" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-opacity="0.45"/>
+  <circle cx="214" cy="210" r="31" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-opacity="0.45"/>
+  <circle cx="298" cy="210" r="31" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-opacity="0.45"/>
+
+  <!-- X-frame arms, motors, body — with drop shadow -->
+  <g filter="url(#shadow)">
+    <!-- Arms -->
+    <line x1="214" y1="126" x2="298" y2="210"
+          stroke="#F0F0F4" stroke-width="11" stroke-linecap="round"/>
+    <line x1="298" y1="126" x2="214" y2="210"
+          stroke="#F0F0F4" stroke-width="11" stroke-linecap="round"/>
+
+    <!-- Motor housings -->
+    <circle cx="214" cy="126" r="14" fill="#22223A"/>
+    <circle cx="298" cy="126" r="14" fill="#22223A"/>
+    <circle cx="214" cy="210" r="14" fill="#22223A"/>
+    <circle cx="298" cy="210" r="14" fill="#22223A"/>
+    <!-- Motor inner ring -->
+    <circle cx="214" cy="126" r="7"  fill="#484868"/>
+    <circle cx="298" cy="126" r="7"  fill="#484868"/>
+    <circle cx="214" cy="210" r="7"  fill="#484868"/>
+    <circle cx="298" cy="210" r="7"  fill="#484868"/>
+
+    <!-- Center body: diamond (square rotated 45°) -->
+    <!-- 28×28 square centered at (256,168) rotated 45° -->
+    <rect x="242" y="154" width="28" height="28" rx="4"
+          transform="rotate(45,256,168)" fill="#22223A"/>
+    <rect x="246" y="158" width="20" height="20" rx="2.5"
+          transform="rotate(45,256,168)" fill="#ECECF4"/>
+
+    <!-- Center LED: ambient_light_color tint = #D9E6FF → slightly cyan -->
+    <circle cx="256" cy="168" r="3.5" fill="#66CCFF"/>
+  </g>
+</svg>
