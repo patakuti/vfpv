@@ -1,10 +1,25 @@
 # vfpv
 
+<img src="icon.png" width="96" align="right"/>
+
 Keyboard-only drone FPV low-altitude high-speed flight experience built with Godot Engine 4.
 
 ![demo](docs/demo.gif)
 
 **[Play in browser on itch.io](https://patakuti.itch.io/vfpv)**
+
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="docs/1_Terrain.jpg" width="360"/></td>
+    <td><img src="docs/2_City.jpg" width="360"/></td>
+  </tr>
+  <tr>
+    <td><img src="docs/3_Canyon.jpg" width="360"/></td>
+    <td><img src="docs/4_Tube.jpg" width="360"/></td>
+  </tr>
+</table>
 
 ## Motivation
 
