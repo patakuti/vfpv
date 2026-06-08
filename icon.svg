@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    v3b: 山2層 紫 + 緑 (標準terrain配色)
+    ドローン同一 scale=180, center=(256,165)
+  -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#4D8CFF"/>
+      <stop offset="72%" stop-color="#A6D1FF"/>
+      <stop offset="100%" stop-color="#C2DCFF"/>
+    </linearGradient>
+    <radialGradient id="prop" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#9999A6" stop-opacity="0.42"/>
+      <stop offset="100%" stop-color="#9999A6" stop-opacity="0.04"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8"
+                    flood-color="#000822" flood-opacity="0.52"/>
+    </filter>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="512" height="512" fill="url(#sky)"/>
+
+  <!-- Far mountains: #5C4499, 4峰 -->
+  <polygon points="
+    0,445  88,312  205,350  308,302  418,338  512,316  512,445
+  " fill="#5C4499"/>
+  <!-- Snow: #E6E6FF -->
+  <polygon points="88,312  106,338   70,338" fill="#E6E6FF"/>
+  <polygon points="308,302 328,330  288,330" fill="#E6E6FF"/>
+
+  <!-- Near hills: normal_color lerp #1A6B24, 3峰 -->
+  <polygon points="
+    0,470  130,390  285,412  440,394  512,402  512,470
+  " fill="#1A6B24"/>
+
+  <!-- Foreground -->
+  <rect x="0" y="460" width="512" height="52" fill="#0A4010"/>
+
+  <!-- ── Drone (identical to v3a) ── -->
+  <circle cx="157" cy="66"  r="40" fill="url(#prop)"/>
+  <circle cx="355" cy="66"  r="40" fill="url(#prop)"/>
+  <circle cx="157" cy="264" r="40" fill="url(#prop)"/>
+  <circle cx="355" cy="264" r="40" fill="url(#prop)"/>
+
+  <polygon points="157,18  191,32  205,66  191,100 157,114 123,100 109,66  123,32"
+           fill="none" stroke="#1F1F26" stroke-width="7" stroke-linejoin="miter"/>
+  <polygon points="355,18  389,32  403,66  389,100 355,114 321,100 307,66  321,32"
+           fill="none" stroke="#1F1F26" stroke-width="7" stroke-linejoin="miter"/>
+  <polygon points="157,216 191,230 205,264 191,298 157,312 123,298 109,264 123,230"
+           fill="none" stroke="#1F1F26" stroke-width="7" stroke-linejoin="miter"/>
+  <polygon points="355,216 389,230 403,264 389,298 355,312 321,298 307,264 321,230"
+           fill="none" stroke="#1F1F26" stroke-width="7" stroke-linejoin="miter"/>
+
+  <g filter="url(#shadow)">
+    <line x1="157" y1="66"  x2="355" y2="264"
+          stroke="#1A1A21" stroke-width="13" stroke-linecap="square"/>
+    <line x1="355" y1="66"  x2="157" y2="264"
+          stroke="#1A1A21" stroke-width="13" stroke-linecap="square"/>
+    <line x1="157" y1="66"  x2="355" y2="264"
+          stroke="#2E2E38" stroke-width="5"  stroke-linecap="square"/>
+    <line x1="355" y1="66"  x2="157" y2="264"
+          stroke="#2E2E38" stroke-width="5"  stroke-linecap="square"/>
+
+    <rect x="216" y="115" width="80" height="100" fill="#1A1A21"/>
+    <rect x="222" y="121" width="68" height="88"  fill="#2E2E38"/>
+    <rect x="249" y="115" width="14" height="100" fill="#2E2E38"/>
+    <rect x="216" y="121" width="22" height="80"  fill="#2E2E38"/>
+    <rect x="216" y="124" width="14" height="72"  fill="#1A1A21"/>
+    <rect x="274" y="121" width="22" height="80"  fill="#2E2E38"/>
+    <rect x="282" y="124" width="14" height="72"  fill="#1A1A21"/>
+
+    <rect x="247" y="165" width="18" height="22"  fill="#2E2E38"/>
+    <rect x="246" y="165" width="20" height="3"   fill="#0099FF"/>
+    <rect x="246" y="184" width="20" height="3"   fill="#0099FF"/>
+    <rect x="250" y="169" width="12" height="14"  fill="#262633"/>
+
+    <rect x="249" y="127" width="14" height="16"  fill="#2E2E38"/>
+    <rect x="251" y="128" width="10" height="3"   fill="#0099FF"/>
+
+    <rect x="229" y="104" width="54" height="14"  fill="#1A1A21"/>
+
+    <rect x="247" y="93"  width="18" height="18"  fill="#2E2E38"/>
+    <rect x="250" y="96"  width="12" height="12"  fill="#080812"/>
+    <rect x="253" y="99"  width="6"  height="6"   fill="#0066CC" fill-opacity="0.65"/>
+
+    <rect x="212" y="131" width="4"  height="72"  fill="#0099FF" opacity="0.90"/>
+    <rect x="296" y="131" width="4"  height="72"  fill="#0099FF" opacity="0.90"/>
+
+    <rect x="245" y="198" width="22" height="14"  fill="#2E2E38"/>
+    <rect x="238" y="215" width="36" height="5"   fill="#FF1A1A"/>
+
+    <rect x="241" y="205" width="3"  height="27"  fill="#2E2E38"/>
+    <rect x="268" y="205" width="3"  height="27"  fill="#2E2E38"/>
+    <rect x="241" y="229" width="3"  height="5"   fill="#FF1A1A"/>
+    <rect x="268" y="229" width="3"  height="5"   fill="#FF1A1A"/>
+
+    <circle cx="157" cy="66"  r="17" fill="#2E2E38"/>
+    <circle cx="355" cy="66"  r="17" fill="#2E2E38"/>
+    <circle cx="157" cy="264" r="17" fill="#2E2E38"/>
+    <circle cx="355" cy="264" r="17" fill="#2E2E38"/>
+    <circle cx="157" cy="66"  r="12" fill="#262633"/>
+    <circle cx="355" cy="66"  r="12" fill="#262633"/>
+    <circle cx="157" cy="264" r="12" fill="#262633"/>
+    <circle cx="355" cy="264" r="12" fill="#262633"/>
+    <circle cx="157" cy="66"  r="14" fill="none" stroke="#0099FF" stroke-width="3.5"/>
+    <circle cx="355" cy="66"  r="14" fill="none" stroke="#0099FF" stroke-width="3.5"/>
+    <circle cx="157" cy="264" r="14" fill="none" stroke="#FF1A1A" stroke-width="3.5"/>
+    <circle cx="355" cy="264" r="14" fill="none" stroke="#FF1A1A" stroke-width="3.5"/>
+  </g>
+</svg>
