@@ -2,13 +2,23 @@
 .godot/
 *.uid
 
+# Keystore (never commit)
+*.keystore
+
 # Export binaries
 *.x86_64
 *.exe
 *.pck
 *.apk
 *.apk.idsig
+*.aab
 Web/
+
+# Android build directory (Godot-generated)
+android/
+
+# Godot import metadata in docs
+docs/*.import
 
 
 # Project documents (local only)

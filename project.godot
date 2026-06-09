@@ -8,10 +8,6 @@
 
 config_version=5
 
-[autoload]
-
-SettingsManager="*res://scripts/settings_manager.gd"
-
 [animation]
 
 compatibility/default_parent_skeleton_in_mesh_instance_3d=true
@@ -19,9 +15,13 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="vfpv"
-config/icon="res://icon.png"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6")
+config/icon="res://icon.png"
+
+[autoload]
+
+SettingsManager="*res://scripts/settings_manager.gd"
 
 [display]
 
@@ -36,5 +36,5 @@ sensors/enable_accelerometer=true
 
 [rendering]
 
-textures/vram_compression/import_etc2_astc=true
 renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
