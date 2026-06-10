@@ -26,6 +26,9 @@ const DRONE_FREQ_OFFSETS: Array[float] = [1.00, 1.03, 0.97, 1.015]  # per-motor 
 const DRONE_POWER_SMOOTH: float = 8.0  # how fast motor power tracks (1/s)
 const DRONE_FREQ_MIN: float = 500.0    # Hz at minimum motor power
 const DRONE_FREQ_MAX: float = 1800.0   # Hz at full motor power (harmonics reach 5400 Hz)
+const DRONE_SPEED_WEIGHT: float = 0.5  # blend ratio of speed vs motor_power in pitch (0=motor only, 1=speed only)
+const DRONE_SPEED_MIN: float = 20.0    # must match player.MIN_SPEED
+const DRONE_SPEED_MAX: float = 400.0   # must match player.MAX_SPEED
 
 var player: CharacterBody3D
 
@@ -130,7 +133,9 @@ func _process_drone(delta: float) -> void:
 		return
 
 	_drone_smooth_power = lerpf(_drone_smooth_power, player.motor_power, DRONE_POWER_SMOOTH * delta)
-	var base_freq := lerpf(DRONE_FREQ_MIN, DRONE_FREQ_MAX, _drone_smooth_power)
+	var speed_ratio := clampf((player.velocity.length() - DRONE_SPEED_MIN) / (DRONE_SPEED_MAX - DRONE_SPEED_MIN), 0.0, 1.0)
+	var pitch_value := lerpf(_drone_smooth_power, speed_ratio, DRONE_SPEED_WEIGHT)
+	var base_freq := lerpf(DRONE_FREQ_MIN, DRONE_FREQ_MAX, pitch_value)
 	var dt := 1.0 / MIX_RATE
 
 	for _f in range(frames):
