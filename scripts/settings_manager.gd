@@ -14,6 +14,9 @@ var audio_mode: String = "drone"  # "music", "drone", "off"
 
 func _ready() -> void:
 	load_settings()
+	if OS.get_name() == "Android":
+		min_speed = 10.0
+		max_speed = 300.0
 
 func load_settings() -> void:
 	var cfg := ConfigFile.new()
@@ -28,9 +31,6 @@ func load_settings() -> void:
 	audio_mode  = cfg.get_value(SECTION, "audio_mode",  audio_mode)
 	var rg: Array = cfg.get_value(SECTION, "ref_gravity", [ref_gravity.x, ref_gravity.y, ref_gravity.z])
 	ref_gravity = Vector3(rg[0], rg[1], rg[2])
-	if OS.get_name() == "Android":
-		min_speed = 10.0
-		max_speed = 300.0
 
 func save_settings() -> void:
 	var cfg := ConfigFile.new()
