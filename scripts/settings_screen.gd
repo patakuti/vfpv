@@ -116,10 +116,11 @@ func _build_ui() -> void:
 	vbox.add_child(HSeparator.new())
 
 	# --- Speed ---
-	_section(vbox, "Speed")
-	_min_speed_label = _speed_stepper(vbox, _on_min_dec, _on_min_inc)
-	_max_speed_label = _speed_stepper(vbox, _on_max_dec, _on_max_inc)
-	vbox.add_child(HSeparator.new())
+	if OS.get_name() != "Android":
+		_section(vbox, "Speed")
+		_min_speed_label = _speed_stepper(vbox, _on_min_dec, _on_min_inc)
+		_max_speed_label = _speed_stepper(vbox, _on_max_dec, _on_max_inc)
+		vbox.add_child(HSeparator.new())
 
 	# --- Stage ---
 	_section(vbox, "Stage")
@@ -246,9 +247,10 @@ func _option(parent: Node, items: Array) -> OptionButton:
 	return ob
 
 func _sync_from_settings() -> void:
-	_min_speed_val = SettingsManager.min_speed
-	_max_speed_val = SettingsManager.max_speed
-	_update_speed_labels()
+	if OS.get_name() != "Android":
+		_min_speed_val = SettingsManager.min_speed
+		_max_speed_val = SettingsManager.max_speed
+		_update_speed_labels()
 
 	var stages := ["terrain", "city", "canyon", "tube"]
 	var si := stages.find(SettingsManager.stage)
@@ -294,8 +296,9 @@ func _on_close_pressed() -> void:
 	closed.emit()
 
 func _apply_and_save() -> void:
-	SettingsManager.min_speed = _min_speed_val
-	SettingsManager.max_speed = _max_speed_val
+	if OS.get_name() != "Android":
+		SettingsManager.min_speed = _min_speed_val
+		SettingsManager.max_speed = _max_speed_val
 
 	var stages := ["terrain", "city", "canyon", "tube"]
 	SettingsManager.stage = stages[_stage_option.selected]
