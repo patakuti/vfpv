@@ -10,7 +10,7 @@ var quality: String = "auto"
 var stage: String = "terrain"
 var god_mode: bool = false
 var camera_mode: String = "fpv"
-var audio_mode: String = "music"  # "music", "drone", "off"
+var audio_mode: String = "drone"  # "music", "drone", "off"
 
 func _ready() -> void:
 	load_settings()
@@ -28,11 +28,15 @@ func load_settings() -> void:
 	audio_mode  = cfg.get_value(SECTION, "audio_mode",  audio_mode)
 	var rg: Array = cfg.get_value(SECTION, "ref_gravity", [ref_gravity.x, ref_gravity.y, ref_gravity.z])
 	ref_gravity = Vector3(rg[0], rg[1], rg[2])
+	if OS.get_name() == "Android":
+		min_speed = 10.0
+		max_speed = 300.0
 
 func save_settings() -> void:
 	var cfg := ConfigFile.new()
-	cfg.set_value(SECTION, "min_speed",   min_speed)
-	cfg.set_value(SECTION, "max_speed",   max_speed)
+	if OS.get_name() != "Android":
+		cfg.set_value(SECTION, "min_speed",   min_speed)
+		cfg.set_value(SECTION, "max_speed",   max_speed)
 	cfg.set_value(SECTION, "quality",     quality)
 	cfg.set_value(SECTION, "stage",       stage)
 	cfg.set_value(SECTION, "god_mode",    god_mode)
