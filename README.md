@@ -163,6 +163,10 @@ shaders/
 - **Web: BGM does not play until first user input** — Browser autoplay policy blocks audio until a user interaction (key press, click, etc.). BGM will start automatically after the first input.
 - **Web: BGM loop restarts from the beginning** — The `loop_offset` setting is not supported on the Web backend. On desktop, BGM loops seamlessly from a mid-point; on Web, it restarts from the beginning.
 
+## About this project
+
+This tool was designed and implemented entirely by Claude. The human provided the idea. However, this isn't a one-shot output; the human shaped it through hands-on testing and iterative, detail-oriented feedback.
+
 ## Credits
 
 - Music: "Future Travel" by Zodik ([CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/)) — https://opengameart.org/content/zodik-future-travel
