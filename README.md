@@ -90,6 +90,9 @@ See [ANDROID.md](ANDROID.md).
 | `:stage city` | Switch to urban city stage |
 | `:stage canyon` | Switch to canyon stage |
 | `:stage tube` | Switch to tube tunnel stage |
+| `:stage fuji` | Switch to real-world Mt. Fuji stage (downloads GSI elevation data) |
+| `:stage aso` | Switch to real-world Mt. Aso stage (downloads GSI elevation data) |
+| `:stage miyajima` | Switch to real-world Miyajima stage (Itsukushima Shrine Otorii, astronomically accurate sunset lighting) |
 | `:quality low/mid/high/auto` | Set rendering quality (default: auto) |
 | `:audio music` | BGM music |
 | `:audio drone` | Drone propeller sound (pitch linked to motor output) |
@@ -100,7 +103,10 @@ See [ANDROID.md](ANDROID.md).
 ## Features
 
 - **Vi-style controls** — Navigate with familiar vim keybindings
-- **Stage selection** — `:stage terrain` for natural terrain, `:stage city` for urban flying, `:stage canyon` for towering rock walls, `:stage tube` for enclosed tunnel racing
+- **Stage selection** — `:stage terrain` for natural terrain, `:stage city` for urban flying, `:stage canyon` for towering rock walls, `:stage tube` for enclosed tunnel racing, `:stage fuji`/`:stage aso` for real-world terrain
+- **Real-world terrain stage** — Live-downloads elevation data from Japan's Geospatial Information Authority (GSI) for Mt. Fuji, Mt. Aso, and Miyajima, and builds a real terrain patch to fly around (requires network access; Desktop/Web only)
+  - Real terrain shading: slope- and local-relief-based shading (from the actual downloaded elevation data) so gentle real-world mountains read clearly instead of looking flat
+  - Miyajima stage: adds a to-scale Itsukushima Shrine Otorii (built from primitives, positioned from real-world coordinates) and points the sun at its real astronomical position for today's sunset at that location
 - **Procedural terrain** — Infinite Perlin noise terrain with 3 biomes (canyon, mountain, plains)
 - **City stage** — Dense urban grid with buildings 15–100m tall, tight 8–15m street gaps
 - **Canyon stage** — Sharp ridged rock walls rising up to ~170m, red-brown to sandy palette, 30–60m valley gaps
@@ -170,3 +176,5 @@ This tool was designed and implemented entirely by Claude. The human provided th
 ## Credits
 
 - Music: "Future Travel" by Zodik ([CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/)) — https://opengameart.org/content/zodik-future-travel
+- Elevation data: [国土地理院](https://www.gsi.go.jp/) (Geospatial Information Authority of Japan), 標高タイル（基盤地図情報数値標高モデル）
+- Otorii location: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors ([ODbL](https://opendatacommons.org/licenses/odbl/))
