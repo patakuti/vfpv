@@ -18,7 +18,6 @@ const DEM_URL_TEMPLATE: String = "https://cyberjapandata.gsi.go.jp/xyz/dem_png/%
 
 const LOCATIONS: Dictionary = {
 	"fuji": {"name": "Mt. Fuji", "lat": 35.3606, "lon": 138.7274},
-	"aso": {"name": "Mt. Aso (Nakadake crater)", "lat": 32.8809, "lon": 131.1045},
 	"miyajima": {
 		"name": "Miyajima (Itsukushima Shrine)",
 		# Center point roughly midway between the Otorii and Mt. Misen so a
