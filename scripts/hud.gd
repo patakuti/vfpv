@@ -116,6 +116,9 @@ func _process(_delta: float) -> void:
 		status_parts.append("AUTO")
 	if player._is_crashed:
 		status_parts.append("CRASHED" if _is_android else "CRASHED - :reset to restart")
+	var real_terrain = get_node_or_null("/root/Main/RealTerrainManager")
+	if real_terrain and real_terrain.status_text != "":
+		status_parts.append(real_terrain.status_text)
 	status_label.text = "  ".join(status_parts)
 
 	# Debug display

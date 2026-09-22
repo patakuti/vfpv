@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=3]
+[gd_scene load_steps=26 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="0_main"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://scripts/city_manager.gd" id="9_city"]
 [ext_resource type="Script" path="res://scripts/canyon_manager.gd" id="14_canyon"]
 [ext_resource type="Script" path="res://scripts/tube_manager.gd" id="15_tube"]
+[ext_resource type="Script" path="res://scripts/real_terrain_manager.gd" id="16_real_terrain"]
 [ext_resource type="Script" path="res://scripts/post_process.gd" id="5_post_process"]
 [ext_resource type="Script" path="res://scripts/low_altitude_particles.gd" id="6_particles"]
 [ext_resource type="Shader" path="res://shaders/motion_blur.gdshader" id="7_blur_shader"]
@@ -125,6 +126,9 @@ script = ExtResource("14_canyon")
 
 [node name="TubeManager" type="Node3D" parent="."]
 script = ExtResource("15_tube")
+
+[node name="RealTerrainManager" type="Node3D" parent="."]
+script = ExtResource("16_real_terrain")
 
 [node name="PostProcess" type="CanvasLayer" parent="."]
 layer = 10
