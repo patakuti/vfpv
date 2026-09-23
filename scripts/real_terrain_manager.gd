@@ -455,7 +455,7 @@ func _build_mesh(location_id: String) -> void:
 						any_land = true
 
 			if any_water and any_land and sx1 > sx0 and sz1 > sz0:
-				water_quad_count += _emit_coastline_submesh(
+				water_quad_count += _emit_coastline_block(
 					src, src_water, src_size, sx0, sx1, sz0, sz1, resolution_m,
 					max_h, location_id, land_st, water_st
 				)
@@ -520,20 +520,35 @@ func _build_mesh(location_id: String) -> void:
 	_build_landmarks(location_id)
 	_compute_spawn(location_id, dst_size, cell_m, max_h)
 
-# Rebuilds a single downsampled-grid quad whose full-resolution source data
-# (unlike its 4 coarse corners) contains both land and water — i.e. an actual
-# stretch of coastline that downsampling would otherwise flatten into one of
-# the mesh's large axis-aligned quads. Re-triangulates that quad at the
-# source's native pixel resolution (~8m) so the land/water split follows the
-# real coastline shape instead of the coarse mesh grid, and appends the
-# result straight into the shared land/water SurfaceTools. Returns the number
-# of all-water sub-quads emitted (added to the caller's water_quad_count).
-func _emit_coastline_submesh(
+# How many sub-steps the coastline boundary is supersampled into per native
+# DEM pixel. The land/water mask is only known at native-pixel samples, so a
+# boundary built directly from it (one sub-quad per pixel) is a staircase of
+# ~8m steps. Sampling water_mask's spline-smoothed field (see
+# _sample_water_smooth) at a finer step than the pixels it's built from turns
+# that staircase into a curve that rounds each pixel corner into an arc,
+# instead of just shrinking the steps.
+const COASTLINE_SUPERSAMPLE: int = 4
+
+# Rebuilds a downsampled-grid quad whose full-resolution source data (unlike
+# its 4 coarse corners) contains both land and water — i.e. an actual stretch
+# of coastline that downsampling would otherwise flatten into one of the
+# mesh's large axis-aligned quads. Re-triangulates it at native pixel
+# resolution first (cheap: one quad per native pixel, same as a normal land
+# or water quad) and only spline-supersamples (_emit_coastline_submesh, the
+# expensive part) the individual native pixels that themselves straddle land
+# and water. Most native pixels inside a "mixed" coarse quad are actually
+# uniform — the true coastline is a thin curve, not most of the quad's area —
+# so this keeps the expensive step's cost proportional to the coastline's
+# real length, instead of to the coarse grid's (quality-dependent) cell size.
+# Appends the result straight into the shared land/water SurfaceTools.
+# Returns the number of all-water quads/sub-quads emitted (added to the
+# caller's water_quad_count).
+func _emit_coastline_block(
 	src: PackedFloat32Array, src_water: PackedByteArray, src_size: int,
 	sx0: int, sx1: int, sz0: int, sz1: int, resolution_m: float, max_h: float,
 	location_id: String, land_st: SurfaceTool, water_st: SurfaceTool
 ) -> int:
-	var water_subquad_count := 0
+	var water_quad_count := 0
 	for sz in range(sz0, sz1):
 		for sx in range(sx0, sx1):
 			var i00 := sz * src_size + sx
@@ -541,14 +556,30 @@ func _emit_coastline_submesh(
 			var i01 := (sz + 1) * src_size + sx
 			var i11 := (sz + 1) * src_size + (sx + 1)
 
+			var w00: bool = src_water[i00] != 0
+			var w10: bool = src_water[i10] != 0
+			var w01: bool = src_water[i01] != 0
+			var w11: bool = src_water[i11] != 0
+
+			if w00 != w10 or w00 != w01 or w00 != w11:
+				# This one native pixel straddles the coastline: refine it
+				# with the spline-smoothed supersampled tessellation.
+				water_quad_count += _emit_coastline_submesh(
+					src, src_water, src_size, sx, sx + 1, sz, sz + 1,
+					resolution_m, max_h, location_id, land_st, water_st
+				)
+				continue
+
+			# Uniform native pixel (the large majority, even inside a "mixed"
+			# coarse quad): emit it directly at native resolution, same as
+			# the coarse loop's own all-water/all-land fast paths.
 			var v00 := Vector3(sx * resolution_m, src[i00], sz * resolution_m)
 			var v10 := Vector3((sx + 1) * resolution_m, src[i10], sz * resolution_m)
 			var v01 := Vector3(sx * resolution_m, src[i01], (sz + 1) * resolution_m)
 			var v11 := Vector3((sx + 1) * resolution_m, src[i11], (sz + 1) * resolution_m)
 
-			var all_water: bool = src_water[i00] != 0 and src_water[i10] != 0 and src_water[i01] != 0 and src_water[i11] != 0
-			if all_water:
-				water_subquad_count += 1
+			if w00:
+				water_quad_count += 1
 				water_st.set_normal(Vector3.UP); water_st.add_vertex(v00)
 				water_st.set_normal(Vector3.UP); water_st.add_vertex(v10)
 				water_st.set_normal(Vector3.UP); water_st.add_vertex(v01)
@@ -562,10 +593,121 @@ func _emit_coastline_submesh(
 				var n01 := _native_normal(src, src_size, sx, sz + 1, resolution_m)
 				var n11 := _native_normal(src, src_size, sx + 1, sz + 1, resolution_m)
 
-				var c00 := SEA_COLOR if src_water[i00] != 0 else _vertex_color(src[i00], max_h, n00, _native_relief(src, src_size, sx, sz), location_id)
-				var c10 := SEA_COLOR if src_water[i10] != 0 else _vertex_color(src[i10], max_h, n10, _native_relief(src, src_size, sx + 1, sz), location_id)
-				var c01 := SEA_COLOR if src_water[i01] != 0 else _vertex_color(src[i01], max_h, n01, _native_relief(src, src_size, sx, sz + 1), location_id)
-				var c11 := SEA_COLOR if src_water[i11] != 0 else _vertex_color(src[i11], max_h, n11, _native_relief(src, src_size, sx + 1, sz + 1), location_id)
+				var c00 := _vertex_color(src[i00], max_h, n00, _native_relief(src, src_size, sx, sz), location_id)
+				var c10 := _vertex_color(src[i10], max_h, n10, _native_relief(src, src_size, sx + 1, sz), location_id)
+				var c01 := _vertex_color(src[i01], max_h, n01, _native_relief(src, src_size, sx, sz + 1), location_id)
+				var c11 := _vertex_color(src[i11], max_h, n11, _native_relief(src, src_size, sx + 1, sz + 1), location_id)
+
+				land_st.set_color(c00); land_st.set_normal(n00); land_st.add_vertex(v00)
+				land_st.set_color(c10); land_st.set_normal(n10); land_st.add_vertex(v10)
+				land_st.set_color(c01); land_st.set_normal(n01); land_st.add_vertex(v01)
+
+				land_st.set_color(c10); land_st.set_normal(n10); land_st.add_vertex(v10)
+				land_st.set_color(c11); land_st.set_normal(n11); land_st.add_vertex(v11)
+				land_st.set_color(c01); land_st.set_normal(n01); land_st.add_vertex(v01)
+	return water_quad_count
+
+# Spline-supersamples a single native-pixel cell that straddles land and
+# water (called only from _emit_coastline_block, only for such cells).
+# Re-triangulates it at COASTLINE_SUPERSAMPLE sub-steps per axis, classifying
+# each sub-quad corner from a spline-smoothed reconstruction of the land/
+# water mask (see _sample_water_smooth) rather than the raw pixel mask, so
+# the boundary follows a smooth curve through the real coastline instead of
+# jumping straight from land to water at this pixel's edges. Appends the
+# result straight into the shared land/water SurfaceTools. Returns the
+# number of all-water sub-quads emitted.
+func _emit_coastline_submesh(
+	src: PackedFloat32Array, src_water: PackedByteArray, src_size: int,
+	sx0: int, sx1: int, sz0: int, sz1: int, resolution_m: float, max_h: float,
+	location_id: String, land_st: SurfaceTool, water_st: SurfaceTool
+) -> int:
+	var sub := COASTLINE_SUPERSAMPLE
+	var nx := (sx1 - sx0) * sub
+	var nz := (sz1 - sz0) * sub
+
+	# Precompute the spline-smoothed water field and bilinear heights once per
+	# grid corner instead of once per sub-quad corner: each interior corner
+	# is shared by up to 4 adjacent sub-quads, and _sample_water_smooth in
+	# particular (a 16-tap bicubic) is too expensive to redo that many times.
+	var gw := nx + 1
+	var gh := nz + 1
+	var w_grid := PackedFloat32Array()
+	w_grid.resize(gw * gh)
+	var h_grid := PackedFloat32Array()
+	h_grid.resize(gw * gh)
+	for jz in range(gh):
+		var fz: float = sz0 + float(jz) / sub
+		for jx in range(gw):
+			var fx: float = sx0 + float(jx) / sub
+			var gi := jz * gw + jx
+			w_grid[gi] = _sample_water_smooth(src_water, src_size, fx, fz)
+			h_grid[gi] = _sample_height_bilinear(src, src_size, fx, fz)
+
+	# Shading (normal/relief) stays pinned to native-pixel resolution rather
+	# than following the supersampled geometry: the DEM has no real elevation
+	# detail below native-pixel resolution, so shading any finer than that
+	# would be inventing detail the source data doesn't have, not revealing
+	# it (see _vertex_color's "measured DEM variation, not fabricated" design
+	# intent). Precomputed once per native pixel in this block, since many
+	# supersampled corners round to the same pixel.
+	var nw := sx1 - sx0 + 1
+	var nh := sz1 - sz0 + 1
+	var normal_grid := PackedVector3Array()
+	normal_grid.resize(nw * nh)
+	var relief_grid := PackedFloat32Array()
+	relief_grid.resize(nw * nh)
+	for lz in range(nh):
+		for lx in range(nw):
+			var ni := lz * nw + lx
+			normal_grid[ni] = _native_normal(src, src_size, sx0 + lx, sz0 + lz, resolution_m)
+			relief_grid[ni] = _native_relief(src, src_size, sx0 + lx, sz0 + lz)
+
+	var water_subquad_count := 0
+	for jz in range(nz):
+		for jx in range(nx):
+			var gi00 := jz * gw + jx
+			var gi10 := gi00 + 1
+			var gi01 := gi00 + gw
+			var gi11 := gi01 + 1
+
+			var fx0: float = sx0 + float(jx) / sub
+			var fz0: float = sz0 + float(jz) / sub
+			var fx1: float = fx0 + 1.0 / sub
+			var fz1: float = fz0 + 1.0 / sub
+
+			var w00 := w_grid[gi00]; var w10 := w_grid[gi10]; var w01 := w_grid[gi01]; var w11 := w_grid[gi11]
+			var h00 := h_grid[gi00]; var h10 := h_grid[gi10]; var h01 := h_grid[gi01]; var h11 := h_grid[gi11]
+
+			var v00 := Vector3(fx0 * resolution_m, h00, fz0 * resolution_m)
+			var v10 := Vector3(fx1 * resolution_m, h10, fz0 * resolution_m)
+			var v01 := Vector3(fx0 * resolution_m, h01, fz1 * resolution_m)
+			var v11 := Vector3(fx1 * resolution_m, h11, fz1 * resolution_m)
+
+			var all_water: bool = w00 >= 0.5 and w10 >= 0.5 and w01 >= 0.5 and w11 >= 0.5
+			if all_water:
+				water_subquad_count += 1
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v00)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v10)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v01)
+
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v10)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v11)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v01)
+			else:
+				var lx0 := clampi(int(round(fx0)) - sx0, 0, nw - 1)
+				var lz0 := clampi(int(round(fz0)) - sz0, 0, nh - 1)
+				var lx1 := clampi(int(round(fx1)) - sx0, 0, nw - 1)
+				var lz1 := clampi(int(round(fz1)) - sz0, 0, nh - 1)
+
+				var n00 := normal_grid[lz0 * nw + lx0]
+				var n10 := normal_grid[lz0 * nw + lx1]
+				var n01 := normal_grid[lz1 * nw + lx0]
+				var n11 := normal_grid[lz1 * nw + lx1]
+
+				var c00 := SEA_COLOR if w00 >= 0.5 else _vertex_color(h00, max_h, n00, relief_grid[lz0 * nw + lx0], location_id)
+				var c10 := SEA_COLOR if w10 >= 0.5 else _vertex_color(h10, max_h, n10, relief_grid[lz0 * nw + lx1], location_id)
+				var c01 := SEA_COLOR if w01 >= 0.5 else _vertex_color(h01, max_h, n01, relief_grid[lz1 * nw + lx0], location_id)
+				var c11 := SEA_COLOR if w11 >= 0.5 else _vertex_color(h11, max_h, n11, relief_grid[lz1 * nw + lx1], location_id)
 
 				land_st.set_color(c00); land_st.set_normal(n00); land_st.add_vertex(v00)
 				land_st.set_color(c10); land_st.set_normal(n10); land_st.add_vertex(v10)
@@ -575,6 +717,60 @@ func _emit_coastline_submesh(
 				land_st.set_color(c11); land_st.set_normal(n11); land_st.add_vertex(v11)
 				land_st.set_color(c01); land_st.set_normal(n01); land_st.add_vertex(v01)
 	return water_subquad_count
+
+# 1D Catmull-Rom spline segment through 4 control points (p1..p2 is the
+# interpolated span, p0/p3 are the neighbors that shape its tangents), t in
+# [0, 1].
+func _catmull_rom_1d(p0: float, p1: float, p2: float, p3: float, t: float) -> float:
+	return 0.5 * (
+		2.0 * p1 + (-p0 + p2) * t
+		+ (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t
+		+ (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t * t * t
+	)
+
+# Reconstructs the land/water mask as a continuous field via bicubic
+# Catmull-Rom interpolation (separable: 1D spline along x, then along z) of
+# the native 0/1 pixel mask, and samples it at fractional pixel coordinates
+# (fx, fz). A Catmull-Rom spline passes exactly through the original 0/1
+# samples, so thresholding this field at 0.5 reproduces the original
+# coastline at the sample points while smoothly (and consistently — the
+# spline has a single well-defined value at every point) curving between
+# them, rounding what would otherwise be square pixel corners into arcs.
+# Clamped to [0, 1] because Catmull-Rom can overshoot slightly past a sharp
+# 0->1 step (Gibbs-like ringing) right next to the transition.
+func _sample_water_smooth(src_water: PackedByteArray, src_size: int, fx: float, fz: float) -> float:
+	var ix := int(floor(fx))
+	var iz := int(floor(fz))
+	var tx := fx - ix
+	var tz := fz - iz
+	var col := PackedFloat32Array()
+	col.resize(4)
+	for j in range(4):
+		var zz := clampi(iz - 1 + j, 0, src_size - 1)
+		var p := PackedFloat32Array()
+		p.resize(4)
+		for i in range(4):
+			var xx := clampi(ix - 1 + i, 0, src_size - 1)
+			p[i] = float(src_water[zz * src_size + xx])
+		col[j] = _catmull_rom_1d(p[0], p[1], p[2], p[3], tx)
+	return clampf(_catmull_rom_1d(col[0], col[1], col[2], col[3], tz), 0.0, 1.0)
+
+# Bilinear height sample at fractional native-pixel coordinates, used only to
+# position coastline sub-mesh vertices smoothly between native DEM pixels
+# (shading itself still snaps to the nearest native pixel — see
+# _emit_coastline_submesh).
+func _sample_height_bilinear(src: PackedFloat32Array, src_size: int, fx: float, fz: float) -> float:
+	var ix := clampi(int(floor(fx)), 0, src_size - 1)
+	var iz := clampi(int(floor(fz)), 0, src_size - 1)
+	var ix1 := mini(ix + 1, src_size - 1)
+	var iz1 := mini(iz + 1, src_size - 1)
+	var tx := clampf(fx - ix, 0.0, 1.0)
+	var tz := clampf(fz - iz, 0.0, 1.0)
+	var h00: float = src[iz * src_size + ix]
+	var h10: float = src[iz * src_size + ix1]
+	var h01: float = src[iz1 * src_size + ix]
+	var h11: float = src[iz1 * src_size + ix1]
+	return lerp(lerp(h00, h10, tx), lerp(h01, h11, tx), tz)
 
 # Per-vertex normal at native pixel resolution, from a central difference of
 # the full-resolution source heights (not the smoothed-normal averaging pass
