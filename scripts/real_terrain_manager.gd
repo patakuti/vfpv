@@ -1,28 +1,57 @@
 extends Node3D
 
-# Real-world terrain stage: downloads GSI (Geospatial Information Authority
-# of Japan) elevation tiles at runtime and builds a finite terrain patch
-# around a curated real-world location.
+# Real-world terrain stage: downloads elevation tiles at runtime and builds a
+# finite terrain patch around a curated real-world location. Each location
+# picks a tile_source ("gsi" by default), which selects the tile URL/zoom and
+# the decode/water-detection rules below — the rest of this file (mesh
+# building, landmarks, water reflection, etc.) is tile-source-agnostic.
 #
-# Tile format spec (verified against https://maps.gsi.go.jp/development/demtile.html):
+# gsi tile format spec (verified against
+# https://maps.gsi.go.jp/development/demtile.html):
 #   x = R*65536 + G*256 + B
 #   x < 8388608        -> h = x * 0.01
 #   x == 8388608        -> no data
 #   x > 8388608        -> h = (x - 16777216) * 0.01
 #   no-data pixel is (128, 0, 0)
+#   GSI's DEM only covers land, so a no-data pixel reliably means water.
+#
+# aws_terrarium tile format spec (Terrarium encoding, see
+# https://github.com/tilezen/joerd/blob/master/docs/formats.md):
+#   h = R*256 + G + B/256 - 32768
+#   Unlike GSI, this dataset carries real bathymetry under water (verified
+#   live: mid-channel Golden Gate strait decodes to ~-96m, matching its known
+#   depth, not a sentinel value) — so water here is detected by an elevation
+#   threshold instead of a no-data pixel code.
 
-const TILE_ZOOM: int = 14
 const TILE_SIZE: int = 256
-const GRID: int = 3  # NxN dem_png tiles fetched around the center point
-const DEM_URL_TEMPLATE: String = "https://cyberjapandata.gsi.go.jp/xyz/dem_png/%d/%d/%d.png"
+const GRID: int = 3  # NxN tiles fetched around the center point
+
+const TILE_SOURCES: Dictionary = {
+	"gsi": {
+		"url_template": "https://cyberjapandata.gsi.go.jp/xyz/dem_png/%d/%d/%d.png",
+		"zoom": 14,
+	},
+	"aws_terrarium": {
+		"url_template": "https://elevation-tiles-prod.s3.amazonaws.com/terrarium/%d/%d/%d.png",
+		"zoom": 14,
+	},
+}
+
+# Sea-level threshold for aws_terrarium's real bathymetry data. 0m is the
+# geodetic/tidal datum most terrain sources normalize to; verified live
+# against real values (mid-strait ~-96m, shoreline land positive), see
+# 02_design.md. May need a small tidal-offset adjustment once the coastline
+# is actually rendered for a specific location.
+const AWS_TERRARIUM_WATER_LEVEL: float = 0.0
 
 const LOCATIONS: Dictionary = {
-	"fuji": {"name": "Mt. Fuji", "lat": 35.3606, "lon": 138.7274},
+	"fuji": {"name": "Mt. Fuji", "lat": 35.3606, "lon": 138.7274, "tile_source": "gsi"},
 	"miyajima": {
 		"name": "Miyajima (Itsukushima Shrine)",
 		# Center point roughly midway between the Otorii and Mt. Misen so a
 		# single 3x3 tile patch (~6km) covers both.
 		"lat": 34.2886, "lon": 132.3189,
+		"tile_source": "gsi",
 		"landmarks": [
 			# Otorii (Great Torii) coordinates from OpenStreetMap (ODbL,
 			# https://www.openstreetmap.org/way/555763409), verified live
@@ -121,17 +150,18 @@ func request_location(location_id: String, main: Node) -> void:
 
 func _download_location(location_id: String, main: Node) -> void:
 	var loc: Dictionary = LOCATIONS[location_id]
-	var center := _latlon_to_tile_f(loc["lat"], loc["lon"], TILE_ZOOM)
+	var tile_source: String = loc.get("tile_source", "gsi")
+	var source: Dictionary = TILE_SOURCES[tile_source]
+	var zoom: int = source["zoom"]
+	var url_template: String = source["url_template"]
+
+	var center := _latlon_to_tile_f(loc["lat"], loc["lon"], zoom)
 	var tx0 := int(floor(center.x)) - GRID / 2
 	var ty0 := int(floor(center.y)) - GRID / 2
 
 	var grid_px := GRID * TILE_SIZE
 	var heights := PackedFloat32Array()
 	heights.resize(grid_px * grid_px)
-	# GSI's DEM has no data over the sea (it's a land elevation model), so a
-	# "no data" pixel reliably means water — that's what drives the sea
-	# color below, not a height threshold (which would misclassify real
-	# low-lying land near 0m).
 	var water_mask := PackedByteArray()
 	water_mask.resize(grid_px * grid_px)
 
@@ -140,7 +170,7 @@ func _download_location(location_id: String, main: Node) -> void:
 		for gx in range(GRID):
 			var tx := tx0 + gx
 			var ty := ty0 + gy
-			var url := DEM_URL_TEMPLATE % [TILE_ZOOM, tx, ty]
+			var url := url_template % [zoom, tx, ty]
 			var err := _http.request(url)
 			if err != OK:
 				ok = false
@@ -162,8 +192,9 @@ func _download_location(location_id: String, main: Node) -> void:
 					var ix := gx * TILE_SIZE + px
 					var iy := gy * TILE_SIZE + py
 					var idx := iy * grid_px + ix
-					heights[idx] = _decode_height(c)
-					water_mask[idx] = 1 if _is_no_data(c) else 0
+					var h := _decode_height(c, tile_source)
+					heights[idx] = h
+					water_mask[idx] = 1 if _is_water(c, h, tile_source) else 0
 
 	_loading = false
 
@@ -178,7 +209,8 @@ func _download_location(location_id: String, main: Node) -> void:
 		"heights": heights,
 		"water_mask": water_mask,
 		"size": grid_px,
-		"resolution_m": _meters_per_pixel(loc["lat"], TILE_ZOOM),
+		"resolution_m": _meters_per_pixel(loc["lat"], zoom),
+		"zoom": zoom,
 		"tx0": tx0,
 		"ty0": ty0,
 	}
@@ -190,7 +222,7 @@ func _download_location(location_id: String, main: Node) -> void:
 # both the raw and downsampled height grids, regardless of downsample factor.
 func _latlon_to_local_xz(location_id: String, lat: float, lon: float) -> Vector2:
 	var data: Dictionary = _cache[location_id]
-	var tile_f := _latlon_to_tile_f(lat, lon, TILE_ZOOM)
+	var tile_f := _latlon_to_tile_f(lat, lon, data["zoom"])
 	var tx0: int = data["tx0"]
 	var ty0: int = data["ty0"]
 	var px: float = (tile_f.x - tx0) * TILE_SIZE
@@ -221,13 +253,13 @@ func is_water_at_world_xz(world_pos: Vector3) -> bool:
 	var water_mask: PackedByteArray = data["water_mask"]
 	return water_mask[sz * size + sx] != 0
 
-func _is_no_data(c: Color) -> bool:
+func _is_no_data_gsi(c: Color) -> bool:
 	var r := int(round(c.r * 255.0))
 	var g := int(round(c.g * 255.0))
 	var b := int(round(c.b * 255.0))
 	return r == 128 and g == 0 and b == 0
 
-func _decode_height(c: Color) -> float:
+func _decode_height_gsi(c: Color) -> float:
 	var r := int(round(c.r * 255.0))
 	var g := int(round(c.g * 255.0))
 	var b := int(round(c.b * 255.0))
@@ -240,6 +272,25 @@ func _decode_height(c: Color) -> float:
 		return 0.0  # NA sentinel (formula boundary case)
 	else:
 		return float(x - 16777216) * ELEVATION_UNIT
+
+func _decode_height_terrarium(c: Color) -> float:
+	var r := int(round(c.r * 255.0))
+	var g := int(round(c.g * 255.0))
+	var b := int(round(c.b * 255.0))
+	return float(r * 256 + g) + float(b) / 256.0 - 32768.0
+
+func _decode_height(c: Color, tile_source: String) -> float:
+	if tile_source == "aws_terrarium":
+		return _decode_height_terrarium(c)
+	return _decode_height_gsi(c)
+
+# Water detection is tile-source-specific: gsi flags water via a no-data
+# pixel code (its DEM only covers land), aws_terrarium via an elevation
+# threshold (it carries real bathymetry, see the file-level comment above).
+func _is_water(c: Color, h: float, tile_source: String) -> bool:
+	if tile_source == "aws_terrarium":
+		return h <= AWS_TERRARIUM_WATER_LEVEL
+	return _is_no_data_gsi(c)
 
 func _latlon_to_tile_f(lat: float, lon: float, zoom: int) -> Vector2:
 	var n := pow(2.0, zoom)
