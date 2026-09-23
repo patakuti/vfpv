@@ -60,6 +60,37 @@ const LOCATIONS: Dictionary = {
 			# separately from the terrain mesh.
 			{"lat": 34.2972999, "lon": 132.3181356, "type": "torii"},
 		],
+		# Winter solstice golden hour, tuned (see main.gd _apply_sunset_lighting
+		# and 03_plan.md Phase 15-17) so the sun clears Mt. Misen (~535m) from
+		# a low, near-sea-level vantage.
+		"lighting": {"month": 12, "day": 21, "target_elevation_deg": 25.0, "light_color": Color(1.0, 0.72, 0.45)},
+	},
+	"goldengate": {
+		"name": "Golden Gate Bridge",
+		# Roughly the bridge's midpoint over the strait; a 3x3 tile patch
+		# (~6km at zoom 14) comfortably covers the ~2.7km bridge plus both
+		# shores. Verified live (Phase 24-1): decodes to real bathymetry
+		# (~-96m at mid-channel), not GSI-style "no data".
+		"lat": 37.8199, "lon": -122.4783,
+		"tile_source": "aws_terrarium",
+		# No landmarks yet — the bridge structure itself is built in a later
+		# phase (see 02_design.md "Phase B"). Tower coordinates need
+		# OpenStreetMap verification first (a rough guess landed in water,
+		# see 03_plan.md Phase 24-1).
+		"landmarks": [],
+		# Placeholder, NOT tuned: unlike Miyajima's 25 deg (tuned against a
+		# known ~535m peak actually occluding the sun), there is no
+		# landmark-occlusion analysis yet for this stage (the bridge model
+		# doesn't exist yet), so this reuses the original pre-Miyajima-tuning
+		# default (3 deg = just before sunset) as a neutral starting point.
+		# Equinox is used for the date because it's the one astronomically
+		# well-defined "no particular reason to pick otherwise" default
+		# (sunset is due west at any latitude — already verified in
+		# solar_position.gd), unlike Miyajima's winter-solstice date, which
+		# was chosen for a documented cultural/photographic reason specific
+		# to that shrine. Revisit once the bridge model exists and an actual
+		# view can be checked.
+		"lighting": {"month": 3, "day": 20, "target_elevation_deg": 3.0, "light_color": Color(1.0, 0.72, 0.45)},
 	},
 }
 

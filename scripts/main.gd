@@ -84,7 +84,7 @@ func switch_stage(stage_name: String) -> void:
 			canyon.deactivate()
 			real.deactivate()
 			tube.activate(player)
-		"fuji", "miyajima":
+		"fuji", "miyajima", "goldengate":
 			# Async: tiles are downloaded over the network. The stage swap
 			# completes later in _on_real_terrain_ready/_on_real_terrain_failed
 			# so the previous stage stays active while loading.
@@ -106,8 +106,9 @@ func _on_real_terrain_ready(location_id: String) -> void:
 	$TubeManager.deactivate()
 	real.activate(player)
 
-	if location_id == "miyajima":
-		_apply_sunset_lighting(real.LOCATIONS["miyajima"]["lat"], real.LOCATIONS["miyajima"]["lon"])
+	var loc: Dictionary = real.LOCATIONS[location_id]
+	if loc.has("lighting"):
+		_apply_sunset_lighting(loc["lat"], loc["lon"], loc["lighting"])
 
 	player.set_spawn(real.get_spawn_position(), real.get_spawn_rotation())
 	player.respawn()
@@ -122,27 +123,17 @@ func _reset_lighting() -> void:
 	light.transform = _default_light_transform
 	light.light_color = _default_light_color
 
-# Points the sun at its real astronomical position for the winter solstice
-# golden hour at the given location (SolarPosition, verified against known
-# reference facts — see scripts/solar_position.gd). Northern hemisphere
-# winter solstice sunset swings the most south of due west, which is the
-# classic angle for this location's famous sunset-torii photos. The warm
-# color tint is an artistic addition on top of that real direction, not
-# itself measured data.
-const WINTER_SOLSTICE_MONTH: int = 12
-const WINTER_SOLSTICE_DAY: int = 21
-# Mt. Misen (~535m) sits close to the torii in the sun's direction; from a
-# low, near-sea-level vantage the sun would be hidden behind it at the
-# original 3deg target. 25deg clears a ~535m peak from ~1.15km away
-# (535m / tan(25deg) =~ 1147m) — earlier in the golden hour, but still a low,
-# warm-toned sun rather than an overhead one. This is a practical clearance
-# margin, not a guarantee from every possible vantage point (closer than
-# ~1.15km, the peak can still hide it).
-const SUN_TARGET_ELEVATION_DEG: float = 25.0
-
-func _apply_sunset_lighting(lat: float, lon: float) -> void:
+# Points the sun at its real astronomical position for a given date/target
+# elevation at the given location (SolarPosition, verified against known
+# reference facts — see scripts/solar_position.gd). `lighting` comes from
+# RealTerrainManager.LOCATIONS[location_id]["lighting"] — each location picks
+# its own date and target elevation (see the comments on each LOCATIONS entry
+# for why); this function itself is location-agnostic. The light_color tint
+# is an artistic addition on top of the real sun direction, not itself
+# measured data.
+func _apply_sunset_lighting(lat: float, lon: float, lighting: Dictionary) -> void:
 	var utc := Time.get_datetime_dict_from_system(true)
-	var sun := SolarPosition.find_evening_elevation(lat, lon, utc["year"], WINTER_SOLSTICE_MONTH, WINTER_SOLSTICE_DAY, SUN_TARGET_ELEVATION_DEG)
+	var sun := SolarPosition.find_evening_elevation(lat, lon, utc["year"], lighting["month"], lighting["day"], lighting["target_elevation_deg"])
 	var az := deg_to_rad(float(sun["azimuth_deg"]))
 	var elev := deg_to_rad(float(sun["elevation_deg"]))
 
@@ -152,4 +143,4 @@ func _apply_sunset_lighting(lat: float, lon: float) -> void:
 
 	var light = $DirectionalLight3D
 	light.look_at(light.global_position - sun_dir, Vector3.UP)
-	light.light_color = Color(1.0, 0.72, 0.45)
+	light.light_color = lighting["light_color"]
