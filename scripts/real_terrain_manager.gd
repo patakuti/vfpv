@@ -166,6 +166,44 @@ const LOCATIONS: Dictionary = {
 		# way from Miyajima's northern-hemisphere case, as expected.
 		"lighting": {"month": 3, "day": 20, "target_elevation_deg": 3.0, "light_color": Color(1.0, 0.72, 0.45)},
 	},
+	"towerbridge": {
+		"name": "Tower Bridge",
+		# OSM's own tourism=attraction node for Tower Bridge, directly
+		# sourced (https://www.openstreetmap.org/node/2079674503); a 3x3
+		# tile patch (~5.8km at zoom 14) comfortably covers the bridge plus
+		# both banks.
+		"lat": 51.5055158, "lon": -0.0753665,
+		"tile_source": "aws_terrarium",
+		# No water_level override (unlike test_sydney's 3.0m): live decoding
+		# + connected-component analysis of the Thames here (02_design.md
+		# "Phase D") found the river's elevation values are cleanly <= 0.0
+		# (max 0.0m, median -1.57m) and the adjacent banks cleanly positive
+		# (min 0.004m), with only ~1.3% stray "land" pixels inside the river
+		# polygon — the aws_terrarium default (0.0m) already classifies this
+		# correctly, verified, not assumed.
+		"landmarks": [
+			{
+				"type": "tower_bridge",
+				# Tower positions derived from OSM way 378541210 (the bridge
+				# deck outline polygon, bridge:structure=suspension,
+				# start_date 1894-06-30): the polygon's own vertices step
+				# outward at each tower's footprint, so the two vertex pairs
+				# nearest each tower were averaged per side. Distance between
+				# the two results (~83.2m) is larger than the official 61m
+				# central span because these are outer tower-footprint
+				# points, not the idealized span between inner tower faces —
+				# same real-coordinates-over-official-figure tradeoff as
+				# test_sydney's deck-endpoint anchors (02_design.md "Phase D").
+				"south_tower": {"lat": 51.50517, "lon": -0.075599},
+				"north_tower": {"lat": 51.50586, "lon": -0.075134},
+			},
+		],
+		# Placeholder, NOT tuned (same reasoning as goldengate/test_sydney: no
+		# landmark-occlusion analysis yet). London is northern hemisphere, so
+		# no southern-hemisphere-style verification is needed (unlike
+		# test_sydney).
+		"lighting": {"month": 3, "day": 20, "target_elevation_deg": 3.0, "light_color": Color(1.0, 0.72, 0.45)},
+	},
 }
 
 # Quality presets: downsample factor (source pixels per mesh cell)
@@ -1097,6 +1135,19 @@ func _compute_spawn(location_id: String, dst_size: int, cell_m: float, max_h: fl
 			_spawn_position = approach + Vector3(0.0, SHB_DECK_HEIGHT + 40.0, 0.0)
 			_spawn_rotation = Vector3(0.0, atan2(geo["along"].x, geo["along"].z) + PI, 0.0)
 			return
+		if lm["type"] == "tower_bridge":
+			# Approach from south of the south tower, at a height inside the
+			# open gap between the low-level deck (floor, TB_LOW_DECK_HEIGHT)
+			# and the tower's own road archway ceiling (TB_ARCH_CLEAR_HEIGHT)
+			# — the flight path runs straight through both towers' archways
+			# (see _build_tb_tower), so the corridor is bounded by that real,
+			# human/vehicle-scaled archway, not by the high-level walkway
+			# (44m) the way earlier versions assumed.
+			var geo := _tower_bridge_geometry(location_id, lm)
+			var approach: Vector3 = geo["south_pos"] - geo["along"] * (TB_SIDE_SPAN_LENGTH + 200.0)
+			_spawn_position = approach + Vector3(0.0, TB_LOW_DECK_HEIGHT + 6.0, 0.0)
+			_spawn_rotation = Vector3(0.0, atan2(geo["along"].x, geo["along"].z) + PI, 0.0)
+			return
 
 	# Default: spawn above and south of the highest point, facing -Z (north,
 	# toward the peak) — GSI tile rows increase southward, so +Z is south.
@@ -1107,9 +1158,9 @@ func _compute_spawn(location_id: String, dst_size: int, cell_m: float, max_h: fl
 	_spawn_rotation = Vector3.ZERO
 
 # Places decorative/gameplay landmarks (currently the Otorii, the Golden
-# Gate Bridge, the Sydney Harbour Bridge, and the Sydney Opera House) that
-# the DEM cannot capture (structures standing in or right at the edge of
-# water read as "no data"/near-zero elevation).
+# Gate Bridge, the Sydney Harbour Bridge, the Sydney Opera House, and Tower
+# Bridge) that the DEM cannot capture (structures standing in or right at the
+# edge of water read as "no data"/near-zero elevation).
 func _build_landmarks(location_id: String) -> void:
 	var loc: Dictionary = LOCATIONS[location_id]
 	for lm in loc.get("landmarks", []):
@@ -1124,6 +1175,8 @@ func _build_landmarks(location_id: String) -> void:
 				_build_sydney_harbour_bridge(location_id, lm)
 			"opera_house":
 				_build_opera_house(location_id, lm)
+			"tower_bridge":
+				_build_tower_bridge(location_id, lm)
 
 # Simplified O-torii of Itsukushima Shrine, built from primitives (same
 # technique as the player drone model). Confirmed real dimensions (see
@@ -1793,3 +1846,574 @@ func _build_opera_shell(root: Node3D, origin: Vector3, forward: Vector3, right: 
 	mesh_inst.mesh = st.commit()
 	mesh_inst.material_override = material
 	root.add_child(mesh_inst)
+
+# Tower Bridge, built from primitives (same technique as the other
+# landmarks) — but unlike the Golden Gate (suspension) and Sydney Harbour
+# Bridge (arch), this is a bascule bridge: two solid towers carry a
+# high-level walkway near their tops AND a low-level road deck near the
+# water, with the flyable opening being the gap BETWEEN those two levels
+# (not open sky above a single deck). Confirmed real dimensions (Wikipedia,
+# cross-checked against the official site's general terms only — see
+# 01_requirements.md/02_design.md "Phase D"): tower height 65m, central span
+# 61m (official; actual geometry uses the real OSM tower-to-tower distance
+# instead, see _tower_bridge_geometry), side spans 82m each, total length
+# 290m, high-level walkway 44m above the river, low-level road deck
+# clearance 29ft/~8.8m above high water when closed (Wikipedia only, not
+# independently corroborated), roadway width 60ft/~18.3m between parapets.
+# The bascule leaves are modeled permanently closed (no open/close
+# animation) — same static-structure scope as goldengate/sydney. Tower
+# footprint and turret dimensions are NOT published anywhere this project
+# found; they are proportional estimates (see TB_* constants below), same
+# status as the Golden Gate tower's unpublished leg spacing.
+const TB_TOWER_HEIGHT: float = 65.0          # official, above river (this stage's Y=0)
+const TB_CENTRAL_SPAN_OFFICIAL: float = 61.0 # official; actual geometry uses the real tower-to-tower distance instead (see _tower_bridge_geometry)
+const TB_SIDE_SPAN_LENGTH: float = 82.0      # official, each side
+const TB_WALKWAY_HEIGHT: float = 44.0        # official, high-level walkway above the river
+const TB_WALKWAY_WIDTH: float = 6.0          # estimate: each of the two real walkways, narrower than the roadway
+const TB_WALKWAY_THICKNESS: float = 3.0      # estimate, same visual-thickness approach as GG_DECK_THICKNESS/SHB_DECK_THICKNESS
+# The real bridge has two separate high-level walkways side by side, not one
+# centered walkway (user correction, 02_design.md "Phase D"). Spacing from
+# the centerline is an estimate: kept inside the tower's own footprint
+# (TB_TOWER_WIDTH/2) so each walkway still visually lands on the tower body.
+const TB_WALKWAY_SPACING: float = 7.0        # estimate
+const TB_LOW_DECK_HEIGHT: float = 8.8        # secondary-source figure only (Wikipedia's "29ft when closed"), not corroborated against a primary source — see 02_design.md
+const TB_DECK_WIDTH: float = 18.3            # official (60ft between parapets)
+const TB_DECK_THICKNESS: float = 3.0         # estimate, same visual-thickness approach as GG_DECK_THICKNESS/SHB_DECK_THICKNESS
+# Tower shape (per user correction, 02_design.md "Phase D" — replaces two
+# earlier attempts): a single cuboid tower body with an arch-shaped opening
+# hollowed through its lower portion for the road, four cylindrical corner
+# posts (each capped with its own cone) running the tower's full height, and
+# a four-sided pyramidal roof on top of the cuboid. None of these footprint/
+# roof dimensions are published anywhere this project found; they are
+# proportional estimates, same status as the Golden Gate tower's unpublished
+# leg spacing.
+const TB_TOWER_WIDTH: float = 22.0           # estimate: overall across-axis footprint, kept wider than TB_DECK_WIDTH (18.3m) so the roadway clears the corner posts
+const TB_TOWER_DEPTH_ALONG: float = 12.0     # estimate: not published
+# TB_ARCH_HEIGHT is where the solid crown/body mass begins (see
+# _build_tb_tower) — unrelated to the road archway's own height, below.
+const TB_ARCH_HEIGHT: float = TB_WALKWAY_HEIGHT
+const TB_CORNER_POST_RADIUS: float = 2.0     # estimate
+const TB_ROOF_HEIGHT: float = 10.0           # estimate; the cuboid body fills the remaining height below the roof (TB_TOWER_HEIGHT - TB_ROOF_HEIGHT)
+# User correction (02_design.md "Phase D"): below the roof/crown, the tower
+# is a hollow masonry shell, not open framework — solid walls on the two
+# side faces (perpendicular to the roadway), and solid walls on the two
+# front/back faces EXCEPT for the roadway's own arch-shaped opening near the
+# base. The reference photo shows this archway as a small fraction of the
+# tower's total height (roughly one "storey" out of many), with solid wall
+# continuing all the way up above it — the first version of this fix got
+# this backwards, stretching the opening up to the high-level walkway
+# (44m) so it read as "one big hole" instead of "small arch, dominant
+# wall". TB_ARCH_CLEAR_HEIGHT now governs the archway's own height,
+# decoupled from TB_ARCH_HEIGHT/the walkway. The arch's round top is a real
+# smooth semicircular curve — a custom SurfaceTool mesh built by
+# _build_tb_arch_spandrel, not a boxy stepped approximation (an earlier
+# version used a handful of stepped boxes, which read as a jagged
+# staircase rather than a smooth arch per user feedback).
+const TB_WALL_THICKNESS: float = 1.5         # estimate: thickness of the tower's solid stone walls
+const TB_ARCH_OPENING_WIDTH: float = 19.0    # estimate: kept wider than TB_DECK_WIDTH (18.3m) so the roadway clears the opening
+# The flyable corridor runs through this archway (see _compute_spawn), so
+# it must clear the low deck's top surface (TB_LOW_DECK_HEIGHT +
+# TB_DECK_THICKNESS/2 = 10.3m) with real margin — kept modest and
+# road-archway-scaled per the reference photo, not stretched to the
+# walkway height the way the tower's overall corridor concept previously
+# assumed.
+const TB_ARCH_CLEAR_HEIGHT: float = 18.0     # estimate
+const TB_ARCH_ARC_SEGMENTS: int = 16         # smoothness of the arch's curved top (SurfaceTool mesh, not a primitive)
+# Reference photo (user-supplied) shows each tower standing on a wide stone
+# pier/plinth rising from the water, distinctly wider than the tower shaft
+# above it. Kept below TB_LOW_DECK_HEIGHT (8.8m) so it sits entirely under
+# the low deck and doesn't intrude into this stage's flyable corridor.
+const TB_PLINTH_HEIGHT: float = 7.5          # estimate
+const TB_PLINTH_MARGIN: float = 2.5          # estimate: how far the plinth projects beyond the corner posts on each side
+# Side-span suspension chains: OSM tags this bridge bridge:structure=
+# "suspension" (verified, 02_design.md "Phase D"), and the real approach
+# spans ARE hung from chains off each tower, not just resting beams — so
+# this is a real structural feature the first version omitted, not applied
+# decoration. None of the chain's own dimensions are published anywhere this
+# project found; they are proportional estimates, same status as the Golden
+# Gate main cable's sag figure.
+const TB_CHAIN_DIAMETER: float = 0.5         # estimate
+const TB_CHAIN_SAG: float = 6.0              # estimate: shallow, since the real side spans are much stiffer/shorter than a full suspension main span
+const TB_CHAIN_SEGMENTS: int = 12            # fewer than the main-span curve technique elsewhere (shorter span, less curvature to resolve)
+const TB_CHAIN_ATTACH_HEIGHT: float = 50.0   # estimate: where the chain leaves the tower, above the walkway (44m) but below the tower top (65m)
+const TB_HANGER_SPACING: float = 10.0        # estimate
+const TB_HANGER_DIAMETER: float = 0.12       # estimate
+
+func _tower_bridge_geometry(location_id: String, lm: Dictionary) -> Dictionary:
+	var s_ll: Dictionary = lm["south_tower"]
+	var n_ll: Dictionary = lm["north_tower"]
+	var s_xz := _latlon_to_local_xz(location_id, s_ll["lat"], s_ll["lon"])
+	var n_xz := _latlon_to_local_xz(location_id, n_ll["lat"], n_ll["lon"])
+	var south_pos := Vector3(s_xz.x, _height_at_local_xz(location_id, s_xz), s_xz.y)
+	var north_pos := Vector3(n_xz.x, _height_at_local_xz(location_id, n_xz), n_xz.y)
+	var delta := north_pos - south_pos
+	var span_len: float = Vector2(delta.x, delta.z).length()
+	var along := Vector3(delta.x, 0.0, delta.z).normalized()
+	var across := Vector3(-along.z, 0.0, along.x)
+	return {
+		"south_pos": south_pos, "north_pos": north_pos,
+		"along": along, "across": across, "span_len": span_len,
+	}
+
+func _build_tower_bridge(location_id: String, lm: Dictionary) -> void:
+	var geo := _tower_bridge_geometry(location_id, lm)
+	var south_pos: Vector3 = geo["south_pos"]
+	var north_pos: Vector3 = geo["north_pos"]
+	var along: Vector3 = geo["along"]
+	var across: Vector3 = geo["across"]
+	var span_len: float = geo["span_len"]
+
+	var stone := StandardMaterial3D.new()
+	stone.albedo_color = Color(0.62, 0.58, 0.52)  # Portland stone cladding
+	stone.roughness = 0.85
+
+	var trim := StandardMaterial3D.new()
+	trim.albedo_color = Color(0.42, 0.39, 0.35)  # darker stringcourse bands, for a coursed-masonry look
+	trim.roughness = 0.85
+
+	var slate := StandardMaterial3D.new()
+	slate.albedo_color = Color(0.20, 0.24, 0.26)  # turret caps: real Tower Bridge caps are dark slate, visibly darker than the stone body
+	slate.roughness = 0.5
+	slate.metallic = 0.1
+
+	# Reference photo (user-supplied, 02_design.md "Phase D") shows the
+	# ironwork — high-level walkway, low-level deck girders, and the side-
+	# span chains alike — painted a distinctive steel blue, not the neutral
+	# dark grey this stage used before; corrected here to match.
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.14, 0.32, 0.52)  # painted steel blue (deck/walkway), matched to the reference photo
+	steel.roughness = 0.55
+	steel.metallic = 0.35
+
+	var chain := StandardMaterial3D.new()
+	chain.albedo_color = Color(0.12, 0.28, 0.46)  # same painted steel blue family, slightly darker for the chains
+	chain.roughness = 0.5
+	chain.metallic = 0.4
+
+	var root := StaticBody3D.new()
+
+	_build_tb_tower(root, location_id, south_pos, along, across, stone, trim, slate)
+	_build_tb_tower(root, location_id, north_pos, along, across, stone, trim, slate)
+
+	_build_tb_walkway(root, south_pos, north_pos, along, across, span_len, steel)
+
+	var deck_start := south_pos - along * TB_SIDE_SPAN_LENGTH
+	var deck_end := north_pos + along * TB_SIDE_SPAN_LENGTH
+	_build_tb_deck(root, deck_start, deck_end, along, across, steel)
+
+	for side: float in [-1.0, 1.0]:
+		var offset: Vector3 = across * (TB_TOWER_WIDTH * 0.5 * side)
+		_build_tb_side_chain(root, south_pos + offset, -along, chain)
+		_build_tb_side_hangers(root, south_pos + offset, -along, chain)
+		_build_tb_side_chain(root, north_pos + offset, along, chain)
+		_build_tb_side_hangers(root, north_pos + offset, along, chain)
+
+	_static_body.add_child(root)
+
+# One tower, rebuilt per the user's own description of the real structure
+# (02_design.md "Phase D"), replacing earlier attempts: a single box
+# spanning the full roadway width (crashed the drone head-on into it), two
+# pillars left fully separate all the way to the top (read as two
+# disconnected spike-topped towers), a pillars-only version below the
+# roofline that left the whole lower tower as open framework (the user
+# clarified this should be a hollowed ARCH through solid walls, not simply
+# no wall at all), and a version whose archway was stretched up to the
+# high-level walkway height so the opening read as one big cavity instead of
+# a small arch under a dominant wall (the user clarified the real archway is
+# only a modest, road-scaled opening — see TB_ARCH_CLEAR_HEIGHT), and a
+# version whose arch top was a handful of blocky stepped boxes rather than a
+# smooth curve (the user asked for a real semicircular arch — see
+# _build_tb_arch_spandrel). Current structure, base to roof:
+# - Four cylindrical corner posts run the tower's FULL height, each capped
+#   with its own cone.
+# - Two solid side walls (facing across the roadway) with no opening.
+# - Two front/back walls (facing along the roadway): a roadway-sized
+#   archway (flat piers plus a smooth semicircular arch top, see
+#   _build_tb_arch_spandrel) only up to TB_ARCH_CLEAR_HEIGHT, then solid
+#   wall the rest of the way up to TB_ARCH_HEIGHT — the plinth below the
+#   archway is likewise split into two wings flanking the opening, so the
+#   roadway/flyable corridor stays clear all the way down to the base.
+# - A solid cuboid body from TB_ARCH_HEIGHT up to the roofline (one unified
+#   mass, per the user's "上部の歩道は塔の視覚中部分の上部に接続している"
+#   note), topped with a four-sided pyramidal roof.
+# Collision matches every solid piece (box-approximated for the cylindrical
+# corner posts, same convention as the Otorii's pillars); the trim band and
+# roof are visual only.
+func _build_tb_tower(root: Node3D, location_id: String, base_pos: Vector3, along: Vector3, across: Vector3, material: Material, trim_material: Material, cap_material: Material) -> void:
+	var box_top: float = TB_TOWER_HEIGHT - TB_ROOF_HEIGHT
+	var half_width: float = TB_TOWER_WIDTH * 0.5
+	var half_depth: float = TB_TOWER_DEPTH_ALONG * 0.5
+	var post_height: float = box_top - base_pos.y
+	var arch_radius: float = TB_ARCH_OPENING_WIDTH * 0.5
+
+	# Stone plinth: a wider, shorter block at the base, standing in for the
+	# real pier the tower sits on. Split into two wings flanking the roadway
+	# archway (same opening half-width as the wall above, see below) instead
+	# of one solid slab — an earlier version left this solid across the full
+	# width, silently blocking the roadway/flyable corridor at the tower's
+	# base even after the wall above it was given a proper archway.
+	#
+	# The plinth's bottom is sampled from the real elevation data at all four
+	# footprint corners (not just the tower's own single anchor point) and
+	# extended down to the lowest of them — a user review found the tower
+	# visually "floating" above a local high spot in the terrain, since the
+	# tower's own single sampled height didn't always match the lower ground
+	# immediately around it. This still uses only real measured heights (no
+	# invented water level or flattening), just more of them.
+	var pw: float = half_width + TB_PLINTH_MARGIN
+	var pd: float = half_depth + TB_PLINTH_MARGIN
+	var plinth_bottom_y: float = base_pos.y
+	for cx: float in [-1.0, 1.0]:
+		for cz: float in [-1.0, 1.0]:
+			var corner: Vector3 = base_pos + across * (pw * cx) + along * (pd * cz)
+			var corner_h: float = _height_at_local_xz(location_id, Vector2(corner.x, corner.z))
+			plinth_bottom_y = minf(plinth_bottom_y, corner_h)
+	var plinth_top_y: float = base_pos.y + TB_PLINTH_HEIGHT
+	var plinth_height: float = plinth_top_y - plinth_bottom_y
+
+	for plinth_side: float in [-1.0, 1.0]:
+		var wing_half_width: float = (half_width + TB_PLINTH_MARGIN - arch_radius) * 0.5
+		var wing_center: Vector3 = base_pos + across * ((arch_radius + wing_half_width) * plinth_side)
+		wing_center.y = (plinth_bottom_y + plinth_top_y) * 0.5
+		var plinth_xform := Transform3D(Basis(across, Vector3.UP, along), wing_center)
+		var plinth_mesh_inst := MeshInstance3D.new()
+		var plinth_mesh := BoxMesh.new()
+		plinth_mesh.size = Vector3(wing_half_width * 2.0, plinth_height, TB_TOWER_DEPTH_ALONG + TB_PLINTH_MARGIN * 2.0)
+		plinth_mesh_inst.mesh = plinth_mesh
+		plinth_mesh_inst.material_override = material
+		plinth_mesh_inst.transform = plinth_xform
+		root.add_child(plinth_mesh_inst)
+
+		var plinth_col := CollisionShape3D.new()
+		var plinth_box := BoxShape3D.new()
+		plinth_box.size = plinth_mesh.size
+		plinth_col.transform = plinth_xform
+		plinth_col.shape = plinth_box
+		root.add_child(plinth_col)
+
+	for across_side: float in [-1.0, 1.0]:
+		for along_side: float in [-1.0, 1.0]:
+			var post_xz: Vector3 = base_pos + across * (half_width * across_side) + along * (half_depth * along_side)
+			var post_center := Vector3(post_xz.x, base_pos.y + post_height * 0.5, post_xz.z)
+
+			var post := MeshInstance3D.new()
+			var post_mesh := CylinderMesh.new()
+			post_mesh.top_radius = TB_CORNER_POST_RADIUS
+			post_mesh.bottom_radius = TB_CORNER_POST_RADIUS
+			post_mesh.height = post_height
+			post.mesh = post_mesh
+			post.material_override = material
+			post.position = post_center
+			root.add_child(post)
+
+			var post_col := CollisionShape3D.new()
+			var post_box := BoxShape3D.new()
+			post_box.size = Vector3(TB_CORNER_POST_RADIUS * 2.0, post_height, TB_CORNER_POST_RADIUS * 2.0)
+			post_col.shape = post_box
+			post_col.position = post_center
+			root.add_child(post_col)
+
+			var cap := MeshInstance3D.new()
+			var cap_mesh := CylinderMesh.new()
+			cap_mesh.top_radius = 0.0  # cone, for the post's own cap
+			cap_mesh.bottom_radius = TB_CORNER_POST_RADIUS
+			cap_mesh.height = TB_ROOF_HEIGHT
+			cap.mesh = cap_mesh
+			cap.material_override = cap_material
+			cap.position = Vector3(post_xz.x, box_top + TB_ROOF_HEIGHT * 0.5, post_xz.z)
+			root.add_child(cap)
+
+	# Solid side walls (facing across the roadway) — no opening.
+	for across_side: float in [-1.0, 1.0]:
+		var wall_center: Vector3 = base_pos + across * (half_width * across_side)
+		wall_center.y = base_pos.y + TB_ARCH_HEIGHT * 0.5
+		var wall_xform := Transform3D(Basis(across, Vector3.UP, along), wall_center)
+
+		var wall_mesh_inst := MeshInstance3D.new()
+		var wall_mesh := BoxMesh.new()
+		wall_mesh.size = Vector3(TB_WALL_THICKNESS, TB_ARCH_HEIGHT, TB_TOWER_DEPTH_ALONG)
+		wall_mesh_inst.mesh = wall_mesh
+		wall_mesh_inst.material_override = material
+		wall_mesh_inst.transform = wall_xform
+		root.add_child(wall_mesh_inst)
+
+		var wall_col := CollisionShape3D.new()
+		var wall_box := BoxShape3D.new()
+		wall_box.size = wall_mesh.size
+		wall_col.transform = wall_xform
+		wall_col.shape = wall_box
+		root.add_child(wall_col)
+
+	# Front/back walls (facing along the roadway) with the roadway's archway
+	# hollowed through them: flat piers up to the springing line, then a
+	# smooth semicircular arch top (circle x = sqrt(r^2 - y^2), built as a
+	# real curved mesh by _build_tb_arch_spandrel, not a boxy stepped
+	# approximation). The apex reaches TB_ARCH_CLEAR_HEIGHT — a real,
+	# road-archway scale, not TB_ARCH_HEIGHT/the walkway — with solid wall
+	# filling the rest of the way up from there (see below).
+	var springing_height: float = TB_ARCH_CLEAR_HEIGHT - arch_radius
+	var pier_width: float = half_width - arch_radius
+	for along_side: float in [-1.0, 1.0]:
+		var face_center_xz: Vector3 = base_pos + along * (half_depth * along_side)
+
+		for pier_side: float in [-1.0, 1.0]:
+			var pier_center: Vector3 = face_center_xz + across * ((arch_radius + pier_width * 0.5) * pier_side)
+			pier_center.y = base_pos.y + springing_height * 0.5
+			var pier_xform := Transform3D(Basis(across, Vector3.UP, along), pier_center)
+
+			var pier_mesh_inst := MeshInstance3D.new()
+			var pier_mesh := BoxMesh.new()
+			pier_mesh.size = Vector3(pier_width, springing_height, TB_WALL_THICKNESS)
+			pier_mesh_inst.mesh = pier_mesh
+			pier_mesh_inst.material_override = material
+			pier_mesh_inst.transform = pier_xform
+			root.add_child(pier_mesh_inst)
+
+			var pier_col := CollisionShape3D.new()
+			var pier_box := BoxShape3D.new()
+			pier_box.size = pier_mesh.size
+			pier_col.transform = pier_xform
+			pier_col.shape = pier_box
+			root.add_child(pier_col)
+
+		_build_tb_arch_spandrel(root, face_center_xz, along, across, base_pos.y + springing_height, base_pos.y + TB_ARCH_CLEAR_HEIGHT, arch_radius, half_width, TB_WALL_THICKNESS, material)
+
+		# Solid infill above the archway, up to TB_ARCH_HEIGHT where the
+		# crown/body box (below) takes over — this is what makes the wall
+		# dominate the small archway below it, matching the reference photo.
+		var infill_height: float = TB_ARCH_HEIGHT - TB_ARCH_CLEAR_HEIGHT
+		var infill_center: Vector3 = face_center_xz
+		infill_center.y = base_pos.y + TB_ARCH_CLEAR_HEIGHT + infill_height * 0.5
+		var infill_xform := Transform3D(Basis(across, Vector3.UP, along), infill_center)
+
+		var infill_mesh_inst := MeshInstance3D.new()
+		var infill_mesh := BoxMesh.new()
+		infill_mesh.size = Vector3(TB_TOWER_WIDTH, infill_height, TB_WALL_THICKNESS)
+		infill_mesh_inst.mesh = infill_mesh
+		infill_mesh_inst.material_override = material
+		infill_mesh_inst.transform = infill_xform
+		root.add_child(infill_mesh_inst)
+
+		var infill_col := CollisionShape3D.new()
+		var infill_box := BoxShape3D.new()
+		infill_box.size = infill_mesh.size
+		infill_col.transform = infill_xform
+		infill_col.shape = infill_box
+		root.add_child(infill_col)
+
+	var body_center := Vector3(base_pos.x, (base_pos.y + TB_ARCH_HEIGHT + box_top) * 0.5, base_pos.z)
+	var body_xform := Transform3D(Basis(across, Vector3.UP, along), body_center)
+
+	var body_mesh_inst := MeshInstance3D.new()
+	var body_mesh := BoxMesh.new()
+	body_mesh.size = Vector3(TB_TOWER_WIDTH, box_top - TB_ARCH_HEIGHT, TB_TOWER_DEPTH_ALONG)
+	body_mesh_inst.mesh = body_mesh
+	body_mesh_inst.material_override = material
+	body_mesh_inst.transform = body_xform
+	root.add_child(body_mesh_inst)
+
+	var body_col := CollisionShape3D.new()
+	var body_box := BoxShape3D.new()
+	body_box.size = body_mesh.size
+	body_col.transform = body_xform
+	body_col.shape = body_box
+	root.add_child(body_col)
+
+	# Trim band at the arch's springing line (where the open archway meets
+	# the solid body above it) — a modest cornice accent, not a claim of
+	# matching the real stonework coursing.
+	var band_center := Vector3(base_pos.x, base_pos.y + TB_ARCH_HEIGHT, base_pos.z)
+	var band_xform := Transform3D(Basis(across, Vector3.UP, along), band_center)
+	var band_mesh_inst := MeshInstance3D.new()
+	var band_mesh := BoxMesh.new()
+	band_mesh.size = Vector3(TB_TOWER_WIDTH + 0.6, 0.6, TB_TOWER_DEPTH_ALONG + 0.6)
+	band_mesh_inst.mesh = band_mesh
+	band_mesh_inst.material_override = trim_material
+	band_mesh_inst.transform = band_xform
+	root.add_child(band_mesh_inst)
+
+	# Four-sided pyramidal roof on the cuboid body. A CylinderMesh with
+	# radial_segments=4 gives a square-based pyramid (Godot has no dedicated
+	# pyramid primitive); its square base doesn't exactly match the
+	# rectangular body footprint (22m across x 12m along), so it slightly
+	# overhangs along the shorter axis — a primitive-only simplification of
+	# what's likely a more elaborate hipped roof in reality. The 45-degree
+	# yaw aligns the pyramid's flat faces with the body's flat faces
+	# (radial_segments=4 otherwise puts vertices, not faces, on the axes).
+	var roof := MeshInstance3D.new()
+	var roof_mesh := CylinderMesh.new()
+	roof_mesh.radial_segments = 4
+	roof_mesh.top_radius = 0.0
+	roof_mesh.bottom_radius = half_width * 1.05
+	roof_mesh.height = TB_ROOF_HEIGHT
+	roof.mesh = roof_mesh
+	roof.material_override = cap_material
+	roof.rotation.y = PI * 0.25
+	roof.position = Vector3(base_pos.x, box_top + TB_ROOF_HEIGHT * 0.5, base_pos.z)
+	root.add_child(roof)
+
+# The solid masonry on either side of the archway's void, from the springing
+# line up to the apex (spring_y/apex_y, both absolute world Y) — a real
+# smooth semicircular curve (circle x = sqrt(r^2-(y-spring_y)^2)), built as
+# a custom mesh (SurfaceTool + Geometry2D.triangulate_polygon) rather than
+# approximated with stepped boxes, per user feedback that the stepped
+# version looked like a jagged staircase instead of a smooth arch. Built as
+# two thin flat caps (front/back, wall-thickness apart) plus a curved
+# "soffit" strip connecting them along the arc, so the underside of the
+# arch has a real surface when flown through up close. Collision is an
+# exact trimesh of the same geometry (Mesh.create_trimesh_shape()), not a
+# box approximation, since the shape is concave and boxes would either gap
+# or intrude into the archway's open space.
+func _build_tb_arch_spandrel(root: Node3D, face_center_xz: Vector3, along: Vector3, across: Vector3, spring_y: float, apex_y: float, radius: float, half_width: float, thickness: float, material: Material) -> void:
+	var half_t: float = thickness * 0.5
+	# face_center_xz already carries the tower's own base Y (see caller) —
+	# strip it here since spring_y/apex_y (and every derived point) are
+	# already absolute world heights; adding both double-counted the base
+	# height and pushed the curved part of the arch far out of place,
+	# leaving only the flat-topped piers visible (looked like a square
+	# cutout instead of an arch).
+	var base_xz := Vector3(face_center_xz.x, 0.0, face_center_xz.z)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	for side: float in [-1.0, 1.0]:
+		var pts2d := PackedVector2Array()
+		pts2d.append(Vector2(half_width * side, spring_y))
+		pts2d.append(Vector2(half_width * side, apex_y))
+		for i in range(TB_ARCH_ARC_SEGMENTS + 1):
+			var t: float = float(i) / float(TB_ARCH_ARC_SEGMENTS)
+			var y: float = lerpf(apex_y, spring_y, t)
+			var x: float = sqrt(maxf(radius * radius - (y - spring_y) * (y - spring_y), 0.0)) * side
+			pts2d.append(Vector2(x, y))
+
+		var verts := PackedVector3Array()
+		for p in pts2d:
+			verts.append(base_xz + across * p.x + Vector3.UP * p.y)
+
+		var indices := Geometry2D.triangulate_polygon(pts2d)
+		for k in range(0, indices.size(), 3):
+			var i0: int = indices[k]
+			var i1: int = indices[k + 1]
+			var i2: int = indices[k + 2]
+			for cap_side: float in [-1.0, 1.0]:
+				var offset: Vector3 = along * (half_t * cap_side)
+				if (side * cap_side) > 0.0:
+					st.add_vertex(verts[i0] + offset)
+					st.add_vertex(verts[i1] + offset)
+					st.add_vertex(verts[i2] + offset)
+				else:
+					st.add_vertex(verts[i0] + offset)
+					st.add_vertex(verts[i2] + offset)
+					st.add_vertex(verts[i1] + offset)
+
+		for i in range(2, pts2d.size() - 1):
+			var a: Vector3 = verts[i]
+			var b: Vector3 = verts[i + 1]
+			var a_f: Vector3 = a + along * (-half_t)
+			var a_b: Vector3 = a + along * half_t
+			var b_f: Vector3 = b + along * (-half_t)
+			var b_b: Vector3 = b + along * half_t
+			if side > 0.0:
+				st.add_vertex(a_f); st.add_vertex(b_f); st.add_vertex(b_b)
+				st.add_vertex(a_f); st.add_vertex(b_b); st.add_vertex(a_b)
+			else:
+				st.add_vertex(a_f); st.add_vertex(b_b); st.add_vertex(b_f)
+				st.add_vertex(a_f); st.add_vertex(a_b); st.add_vertex(b_b)
+
+	st.generate_normals()
+	var mesh := st.commit()
+
+	var mesh_inst := MeshInstance3D.new()
+	mesh_inst.mesh = mesh
+	mesh_inst.material_override = material
+	root.add_child(mesh_inst)
+
+	var col := CollisionShape3D.new()
+	col.shape = mesh.create_trimesh_shape()
+	root.add_child(col)
+
+# The two high-level walkways connecting the two tower tops (real height
+# 44m, real bridge has two separate walkways side by side — see
+# TB_WALKWAY_SPACING) — together they form the ceiling of the flyable gap
+# between the towers.
+func _build_tb_walkway(root: Node3D, south_pos: Vector3, north_pos: Vector3, along: Vector3, across: Vector3, span_len: float, material: Material) -> void:
+	for side: float in [-1.0, 1.0]:
+		var center := (south_pos + north_pos) * 0.5 + across * (TB_WALKWAY_SPACING * side)
+		center.y = TB_WALKWAY_HEIGHT
+
+		var mesh_inst := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(TB_WALKWAY_WIDTH, TB_WALKWAY_THICKNESS, span_len)
+		mesh_inst.mesh = mesh
+		mesh_inst.material_override = material
+		var xform := Transform3D(Basis(across, Vector3.UP, along), center)
+		mesh_inst.transform = xform
+		root.add_child(mesh_inst)
+
+		var col := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = mesh.size
+		col.shape = box
+		col.transform = xform
+		root.add_child(col)
+
+# Low-level road deck (real clearance ~8.8m above high water), spanning the
+# full anchor-to-anchor length plus both side spans (same "single flat deck
+# across everything" simplification as _build_gg_deck) — the floor of the
+# flyable gap between the towers, and the surface of both approach spans.
+func _build_tb_deck(root: Node3D, start: Vector3, end: Vector3, along: Vector3, across: Vector3, material: Material) -> void:
+	var total_len: float = Vector2(end.x - start.x, end.z - start.z).length()
+	var center := (start + end) * 0.5
+	center.y = TB_LOW_DECK_HEIGHT
+
+	var mesh_inst := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(TB_DECK_WIDTH, TB_DECK_THICKNESS, total_len)
+	mesh_inst.mesh = mesh
+	mesh_inst.material_override = material
+	var xform := Transform3D(Basis(across, Vector3.UP, along), center)
+	mesh_inst.transform = xform
+	root.add_child(mesh_inst)
+
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = mesh.size
+	col.shape = box
+	col.transform = xform
+	root.add_child(col)
+
+# One side-span suspension chain: from where it leaves the tower
+# (TB_CHAIN_ATTACH_HEIGHT) down to the bank-end anchor at low-deck height,
+# over the real side-span length (TB_SIDE_SPAN_LENGTH), walked as
+# TB_CHAIN_SEGMENTS straight cylinder segments. Unlike the Golden Gate's
+# main cable (which sags between two equal-height towers), this chain's
+# endpoints are already at different heights, so the curve is a straight
+# height interpolation between them PLUS an extra parabolic dip
+# (TB_CHAIN_SAG) in the middle for a chain's real sagging silhouette — same
+# "curve as straight segments" technique as _build_gg_main_cable /
+# _build_shb_arch_rib. `dir` points away from the tower, toward the bank.
+func _build_tb_side_chain(root: Node3D, tower_pt: Vector3, dir: Vector3, material: Material) -> void:
+	var prev := Vector3(tower_pt.x, TB_CHAIN_ATTACH_HEIGHT, tower_pt.z)
+	for i in range(1, TB_CHAIN_SEGMENTS + 1):
+		var t := float(i) / float(TB_CHAIN_SEGMENTS)
+		var p := tower_pt + dir * (TB_SIDE_SPAN_LENGTH * t)
+		p.y = lerpf(TB_CHAIN_ATTACH_HEIGHT, TB_LOW_DECK_HEIGHT, t) - 4.0 * TB_CHAIN_SAG * t * (1.0 - t)
+		_add_cylinder_segment(root, prev, p, TB_CHAIN_DIAMETER * 0.5, material)
+		prev = p
+
+# Vertical hangers from the side-span chain down to the low deck, at the
+# real spacing estimate (TB_HANGER_SPACING), across the full side span —
+# the chain stays above deck height along the whole span (50m at the tower
+# end down toward ~8.8m at the bank end), unlike the Sydney arch's hangers
+# which are limited to a central fraction.
+func _build_tb_side_hangers(root: Node3D, tower_pt: Vector3, dir: Vector3, material: Material) -> void:
+	var count := int(TB_SIDE_SPAN_LENGTH / TB_HANGER_SPACING)
+	for i in range(1, count):
+		var x: float = i * TB_HANGER_SPACING
+		var t := x / TB_SIDE_SPAN_LENGTH
+		var chain_y: float = lerpf(TB_CHAIN_ATTACH_HEIGHT, TB_LOW_DECK_HEIGHT, t) - 4.0 * TB_CHAIN_SAG * t * (1.0 - t)
+		var p := tower_pt + dir * x
+		_add_cylinder_segment(
+			root, Vector3(p.x, chain_y, p.z), Vector3(p.x, TB_LOW_DECK_HEIGHT, p.z),
+			TB_HANGER_DIAMETER * 0.5, material
+		)
