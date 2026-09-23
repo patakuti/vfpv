@@ -84,7 +84,7 @@ func switch_stage(stage_name: String) -> void:
 			canyon.deactivate()
 			real.deactivate()
 			tube.activate(player)
-		"fuji", "miyajima", "goldengate":
+		"fuji", "miyajima", "goldengate", "test_sydney":
 			# Async: tiles are downloaded over the network. The stage swap
 			# completes later in _on_real_terrain_ready/_on_real_terrain_failed
 			# so the previous stage stays active while loading.
