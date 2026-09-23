@@ -236,8 +236,18 @@ func _download_location(location_id: String, main: Node) -> void:
 					var iy := gy * TILE_SIZE + py
 					var idx := iy * grid_px + ix
 					var h := _decode_height(c, tile_source)
-					heights[idx] = h
-					water_mask[idx] = 1 if _is_water(c, h, tile_source) else 0
+					var is_water := _is_water(c, h, tile_source)
+					# Water cells are flattened to sea level here, at the
+					# source, rather than in the mesh builder: gsi's no-data
+					# pixels already decode to a hardcoded 0.0 (see
+					# _decode_height_gsi), so the water mesh ends up flat "for
+					# free" there, but aws_terrarium carries real bathymetry
+					# (verified live down to ~-114m in this stage's tile —
+					# see 02_design.md "Phase B"), which without this line
+					# would make the water mesh follow the seafloor instead
+					# of sitting flat at the surface.
+					heights[idx] = 0.0 if is_water else h
+					water_mask[idx] = 1 if is_water else 0
 
 	_loading = false
 
