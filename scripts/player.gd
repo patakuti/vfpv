@@ -70,6 +70,16 @@ var _propellers: Array[MeshInstance3D] = []
 const PROP_SPIN_SPEED: float = 25.0
 var drone_pivot: Node3D  # groups all drone meshes for bank roll
 
+# Local (drone_pivot space) XZ of the 4 motor/rotor positions — shared by
+# _build_drone_model() and get_rotor_world_positions() (used by
+# real_terrain_manager.gd to place a rotor-wash ripple per rotor on water).
+const ROTOR_LOCAL_POSITIONS: Array[Vector3] = [
+	Vector3(-0.55, 0.0, -0.55),
+	Vector3(0.55, 0.0, -0.55),
+	Vector3(-0.55, 0.0, 0.55),
+	Vector3(0.55, 0.0, 0.55),
+]
+
 # Bank
 const BANK_MAX_ANGLE: float = 30.0  # degrees
 const BANK_SHARP_ANGLE: float = 55.0  # degrees (for sharp turn)
@@ -338,16 +348,10 @@ func _build_drone_model() -> void:
 		drone_pivot.add_child(rib)
 
 	# === Motor assemblies at 4 corners ===
-	var motor_positions: Array[Vector3] = [
-		Vector3(-0.55, 0.0, -0.55),
-		Vector3(0.55, 0.0, -0.55),
-		Vector3(-0.55, 0.0, 0.55),
-		Vector3(0.55, 0.0, 0.55),
-	]
 	var is_front := [true, true, false, false]
 
 	for i in range(4):
-		var pos: Vector3 = motor_positions[i]
+		var pos: Vector3 = ROTOR_LOCAL_POSITIONS[i]
 
 		# Motor base plate
 		_add_cylinder(0.09, 0.10, 0.03, pos + Vector3(0, 0.02, 0), dark_metal)
@@ -392,6 +396,16 @@ func _build_drone_model() -> void:
 
 	# === Rear receiver box ===
 	_add_box(Vector3(0.12, 0.06, 0.08), Vector3(0, 0.04, 0.20), dark_metal)
+
+# World-space position of each of the 4 rotors, in ROTOR_LOCAL_POSITIONS
+# order. Goes through drone_pivot (not this node) since bank/pitch tilt is
+# applied there, on top of this node's yaw — real_terrain_manager.gd uses
+# this to place a rotor-wash ripple per rotor on the water surface.
+func get_rotor_world_positions() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	for local_pos in ROTOR_LOCAL_POSITIONS:
+		out.append(drone_pivot.to_global(local_pos))
+	return out
 
 func _add_box(size: Vector3, pos: Vector3, mat: StandardMaterial3D) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
