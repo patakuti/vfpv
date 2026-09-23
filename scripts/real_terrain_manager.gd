@@ -1,28 +1,57 @@
 extends Node3D
 
-# Real-world terrain stage: downloads GSI (Geospatial Information Authority
-# of Japan) elevation tiles at runtime and builds a finite terrain patch
-# around a curated real-world location.
+# Real-world terrain stage: downloads elevation tiles at runtime and builds a
+# finite terrain patch around a curated real-world location. Each location
+# picks a tile_source ("gsi" by default), which selects the tile URL/zoom and
+# the decode/water-detection rules below — the rest of this file (mesh
+# building, landmarks, water reflection, etc.) is tile-source-agnostic.
 #
-# Tile format spec (verified against https://maps.gsi.go.jp/development/demtile.html):
+# gsi tile format spec (verified against
+# https://maps.gsi.go.jp/development/demtile.html):
 #   x = R*65536 + G*256 + B
 #   x < 8388608        -> h = x * 0.01
 #   x == 8388608        -> no data
 #   x > 8388608        -> h = (x - 16777216) * 0.01
 #   no-data pixel is (128, 0, 0)
+#   GSI's DEM only covers land, so a no-data pixel reliably means water.
+#
+# aws_terrarium tile format spec (Terrarium encoding, see
+# https://github.com/tilezen/joerd/blob/master/docs/formats.md):
+#   h = R*256 + G + B/256 - 32768
+#   Unlike GSI, this dataset carries real bathymetry under water (verified
+#   live: mid-channel Golden Gate strait decodes to ~-96m, matching its known
+#   depth, not a sentinel value) — so water here is detected by an elevation
+#   threshold instead of a no-data pixel code.
 
-const TILE_ZOOM: int = 14
 const TILE_SIZE: int = 256
-const GRID: int = 3  # NxN dem_png tiles fetched around the center point
-const DEM_URL_TEMPLATE: String = "https://cyberjapandata.gsi.go.jp/xyz/dem_png/%d/%d/%d.png"
+const GRID: int = 3  # NxN tiles fetched around the center point
+
+const TILE_SOURCES: Dictionary = {
+	"gsi": {
+		"url_template": "https://cyberjapandata.gsi.go.jp/xyz/dem_png/%d/%d/%d.png",
+		"zoom": 14,
+	},
+	"aws_terrarium": {
+		"url_template": "https://elevation-tiles-prod.s3.amazonaws.com/terrarium/%d/%d/%d.png",
+		"zoom": 14,
+	},
+}
+
+# Sea-level threshold for aws_terrarium's real bathymetry data. 0m is the
+# geodetic/tidal datum most terrain sources normalize to; verified live
+# against real values (mid-strait ~-96m, shoreline land positive), see
+# 02_design.md. May need a small tidal-offset adjustment once the coastline
+# is actually rendered for a specific location.
+const AWS_TERRARIUM_WATER_LEVEL: float = 0.0
 
 const LOCATIONS: Dictionary = {
-	"fuji": {"name": "Mt. Fuji", "lat": 35.3606, "lon": 138.7274},
+	"fuji": {"name": "Mt. Fuji", "lat": 35.3606, "lon": 138.7274, "tile_source": "gsi"},
 	"miyajima": {
 		"name": "Miyajima (Itsukushima Shrine)",
 		# Center point roughly midway between the Otorii and Mt. Misen so a
 		# single 3x3 tile patch (~6km) covers both.
 		"lat": 34.2886, "lon": 132.3189,
+		"tile_source": "gsi",
 		"landmarks": [
 			# Otorii (Great Torii) coordinates from OpenStreetMap (ODbL,
 			# https://www.openstreetmap.org/way/555763409), verified live
@@ -31,6 +60,49 @@ const LOCATIONS: Dictionary = {
 			# separately from the terrain mesh.
 			{"lat": 34.2972999, "lon": 132.3181356, "type": "torii"},
 		],
+		# Winter solstice golden hour, tuned (see main.gd _apply_sunset_lighting
+		# and 03_plan.md Phase 15-17) so the sun clears Mt. Misen (~535m) from
+		# a low, near-sea-level vantage.
+		"lighting": {"month": 12, "day": 21, "target_elevation_deg": 25.0, "light_color": Color(1.0, 0.72, 0.45)},
+	},
+	"goldengate": {
+		"name": "Golden Gate Bridge",
+		# Roughly the bridge's midpoint over the strait; a 3x3 tile patch
+		# (~6km at zoom 14) comfortably covers the ~2.7km bridge plus both
+		# shores. Verified live (Phase 24-1): decodes to real bathymetry
+		# (~-96m at mid-channel), not GSI-style "no data".
+		"lat": 37.8199, "lon": -122.4783,
+		"tile_source": "aws_terrarium",
+		"landmarks": [
+			{
+				"type": "golden_gate_bridge",
+				# South tower (San Francisco side): OpenStreetMap building
+				# (way 1330586852, height=225 tag, close to the official
+				# 227m), directly sourced. Verified ~4.3m from the OSM road
+				# centerline (Phase 24-4).
+				"south_tower": {"lat": 37.8140144, "lon": -122.4778921},
+				# North tower (Marin side): no matching OSM feature found.
+				# Derived from the south tower + the official main-span
+				# length (1280m) + the real bridge bearing measured from OSM
+				# road geometry near the south tower (~354.7deg). Cross-
+				# checked: lands ~4.4m from the road centerline, matching the
+				# south tower's own ~4.3m offset (Phase 24-4).
+				"north_tower": {"lat": 37.8254769, "lon": -122.4792333},
+			},
+		],
+		# Placeholder, NOT tuned: unlike Miyajima's 25 deg (tuned against a
+		# known ~535m peak actually occluding the sun), there is no
+		# landmark-occlusion analysis yet for this stage (the bridge model
+		# doesn't exist yet), so this reuses the original pre-Miyajima-tuning
+		# default (3 deg = just before sunset) as a neutral starting point.
+		# Equinox is used for the date because it's the one astronomically
+		# well-defined "no particular reason to pick otherwise" default
+		# (sunset is due west at any latitude — already verified in
+		# solar_position.gd), unlike Miyajima's winter-solstice date, which
+		# was chosen for a documented cultural/photographic reason specific
+		# to that shrine. Revisit once the bridge model exists and an actual
+		# view can be checked.
+		"lighting": {"month": 3, "day": 20, "target_elevation_deg": 3.0, "light_color": Color(1.0, 0.72, 0.45)},
 	},
 }
 
@@ -121,17 +193,18 @@ func request_location(location_id: String, main: Node) -> void:
 
 func _download_location(location_id: String, main: Node) -> void:
 	var loc: Dictionary = LOCATIONS[location_id]
-	var center := _latlon_to_tile_f(loc["lat"], loc["lon"], TILE_ZOOM)
+	var tile_source: String = loc.get("tile_source", "gsi")
+	var source: Dictionary = TILE_SOURCES[tile_source]
+	var zoom: int = source["zoom"]
+	var url_template: String = source["url_template"]
+
+	var center := _latlon_to_tile_f(loc["lat"], loc["lon"], zoom)
 	var tx0 := int(floor(center.x)) - GRID / 2
 	var ty0 := int(floor(center.y)) - GRID / 2
 
 	var grid_px := GRID * TILE_SIZE
 	var heights := PackedFloat32Array()
 	heights.resize(grid_px * grid_px)
-	# GSI's DEM has no data over the sea (it's a land elevation model), so a
-	# "no data" pixel reliably means water — that's what drives the sea
-	# color below, not a height threshold (which would misclassify real
-	# low-lying land near 0m).
 	var water_mask := PackedByteArray()
 	water_mask.resize(grid_px * grid_px)
 
@@ -140,7 +213,7 @@ func _download_location(location_id: String, main: Node) -> void:
 		for gx in range(GRID):
 			var tx := tx0 + gx
 			var ty := ty0 + gy
-			var url := DEM_URL_TEMPLATE % [TILE_ZOOM, tx, ty]
+			var url := url_template % [zoom, tx, ty]
 			var err := _http.request(url)
 			if err != OK:
 				ok = false
@@ -162,8 +235,19 @@ func _download_location(location_id: String, main: Node) -> void:
 					var ix := gx * TILE_SIZE + px
 					var iy := gy * TILE_SIZE + py
 					var idx := iy * grid_px + ix
-					heights[idx] = _decode_height(c)
-					water_mask[idx] = 1 if _is_no_data(c) else 0
+					var h := _decode_height(c, tile_source)
+					var is_water := _is_water(c, h, tile_source)
+					# Water cells are flattened to sea level here, at the
+					# source, rather than in the mesh builder: gsi's no-data
+					# pixels already decode to a hardcoded 0.0 (see
+					# _decode_height_gsi), so the water mesh ends up flat "for
+					# free" there, but aws_terrarium carries real bathymetry
+					# (verified live down to ~-114m in this stage's tile —
+					# see 02_design.md "Phase B"), which without this line
+					# would make the water mesh follow the seafloor instead
+					# of sitting flat at the surface.
+					heights[idx] = 0.0 if is_water else h
+					water_mask[idx] = 1 if is_water else 0
 
 	_loading = false
 
@@ -178,7 +262,8 @@ func _download_location(location_id: String, main: Node) -> void:
 		"heights": heights,
 		"water_mask": water_mask,
 		"size": grid_px,
-		"resolution_m": _meters_per_pixel(loc["lat"], TILE_ZOOM),
+		"resolution_m": _meters_per_pixel(loc["lat"], zoom),
+		"zoom": zoom,
 		"tx0": tx0,
 		"ty0": ty0,
 	}
@@ -190,7 +275,7 @@ func _download_location(location_id: String, main: Node) -> void:
 # both the raw and downsampled height grids, regardless of downsample factor.
 func _latlon_to_local_xz(location_id: String, lat: float, lon: float) -> Vector2:
 	var data: Dictionary = _cache[location_id]
-	var tile_f := _latlon_to_tile_f(lat, lon, TILE_ZOOM)
+	var tile_f := _latlon_to_tile_f(lat, lon, data["zoom"])
 	var tx0: int = data["tx0"]
 	var ty0: int = data["ty0"]
 	var px: float = (tile_f.x - tx0) * TILE_SIZE
@@ -221,13 +306,13 @@ func is_water_at_world_xz(world_pos: Vector3) -> bool:
 	var water_mask: PackedByteArray = data["water_mask"]
 	return water_mask[sz * size + sx] != 0
 
-func _is_no_data(c: Color) -> bool:
+func _is_no_data_gsi(c: Color) -> bool:
 	var r := int(round(c.r * 255.0))
 	var g := int(round(c.g * 255.0))
 	var b := int(round(c.b * 255.0))
 	return r == 128 and g == 0 and b == 0
 
-func _decode_height(c: Color) -> float:
+func _decode_height_gsi(c: Color) -> float:
 	var r := int(round(c.r * 255.0))
 	var g := int(round(c.g * 255.0))
 	var b := int(round(c.b * 255.0))
@@ -240,6 +325,25 @@ func _decode_height(c: Color) -> float:
 		return 0.0  # NA sentinel (formula boundary case)
 	else:
 		return float(x - 16777216) * ELEVATION_UNIT
+
+func _decode_height_terrarium(c: Color) -> float:
+	var r := int(round(c.r * 255.0))
+	var g := int(round(c.g * 255.0))
+	var b := int(round(c.b * 255.0))
+	return float(r * 256 + g) + float(b) / 256.0 - 32768.0
+
+func _decode_height(c: Color, tile_source: String) -> float:
+	if tile_source == "aws_terrarium":
+		return _decode_height_terrarium(c)
+	return _decode_height_gsi(c)
+
+# Water detection is tile-source-specific: gsi flags water via a no-data
+# pixel code (its DEM only covers land), aws_terrarium via an elevation
+# threshold (it carries real bathymetry, see the file-level comment above).
+func _is_water(c: Color, h: float, tile_source: String) -> bool:
+	if tile_source == "aws_terrarium":
+		return h <= AWS_TERRARIUM_WATER_LEVEL
+	return _is_no_data_gsi(c)
 
 func _latlon_to_tile_f(lat: float, lon: float, zoom: int) -> Vector2:
 	var n := pow(2.0, zoom)
@@ -899,6 +1003,17 @@ func _compute_spawn(location_id: String, dst_size: int, cell_m: float, max_h: fl
 			_spawn_position = Vector3(xz.x, base_h + 60.0, xz.y - 400.0)
 			_spawn_rotation = Vector3(0.0, PI, 0.0)
 			return
+		if lm["type"] == "golden_gate_bridge":
+			# Approach from south of the south tower (Pacific/ocean side of
+			# the side span), at deck height, facing along the bridge (north)
+			# so the flight path runs straight down the span and through
+			# both towers' openings — the low-altitude, near-structure flying
+			# this project is built around.
+			var geo := _golden_gate_geometry(location_id, lm)
+			var approach: Vector3 = geo["south_pos"] - geo["along"] * (SIDE_SPAN_LENGTH + 200.0)
+			_spawn_position = approach + Vector3(0.0, GG_DECK_HEIGHT + 40.0, 0.0)
+			_spawn_rotation = Vector3(0.0, atan2(geo["along"].x, geo["along"].z) + PI, 0.0)
+			return
 
 	# Default: spawn above and south of the highest point, facing -Z (north,
 	# toward the peak) — GSI tile rows increase southward, so +Z is south.
@@ -908,17 +1023,19 @@ func _compute_spawn(location_id: String, dst_size: int, cell_m: float, max_h: fl
 	_spawn_position = Vector3(center_x, max_h + 150.0, center_z + offset_z)
 	_spawn_rotation = Vector3.ZERO
 
-# Places decorative/gameplay landmarks (currently just the Otorii) that the
-# DEM cannot capture (structures standing in water read as "no data").
+# Places decorative/gameplay landmarks (currently just the Otorii and the
+# Golden Gate Bridge) that the DEM cannot capture (structures standing in or
+# right at the edge of water read as "no data"/near-zero elevation).
 func _build_landmarks(location_id: String) -> void:
 	var loc: Dictionary = LOCATIONS[location_id]
 	for lm in loc.get("landmarks", []):
-		var xz := _latlon_to_local_xz(location_id, lm["lat"], lm["lon"])
-		var base_h := _height_at_local_xz(location_id, xz)
-		var base_pos := Vector3(xz.x, base_h, xz.y)
 		match lm["type"]:
 			"torii":
-				_build_torii(base_pos)
+				var xz := _latlon_to_local_xz(location_id, lm["lat"], lm["lon"])
+				var base_h := _height_at_local_xz(location_id, xz)
+				_build_torii(Vector3(xz.x, base_h, xz.y))
+			"golden_gate_bridge":
+				_build_golden_gate_bridge(location_id, lm)
 
 # Simplified O-torii of Itsukushima Shrine, built from primitives (same
 # technique as the player drone model). Confirmed real dimensions (see
@@ -1033,3 +1150,240 @@ func _build_torii(base_pos: Vector3) -> void:
 	root.add_child(top_col)
 
 	_static_body.add_child(root)
+
+# Golden Gate Bridge, built from primitives (same technique as the Otorii).
+# Confirmed real dimensions (Golden Gate Bridge Highway and Transportation
+# District official stats, re-verified live in Phase 24-4):
+#   tower height above water 227m, main span 1280m, side span 343m (each),
+#   main cable diameter 0.92m, suspender spacing 15.2m / diameter 6.8cm,
+#   roadway width 19m, clearance above water 67m.
+# Tower footprint (leg spacing, leg cross-section) and the tower's internal
+# cross-bracing pattern are NOT published anywhere this project found; they
+# are proportional estimates (see GG_TOWER_* constants below), same status as
+# the Otorii's unpublished support-leg diameter. The cable sag (143m) is
+# corroborated only by secondary sources, not the official site itself — see
+# 01_requirements.md/02_design.md.
+const GG_TOWER_HEIGHT: float = 227.0        # official, above water (this stage's Y=0)
+const GG_MAIN_SPAN_OFFICIAL: float = 1280.0 # official; actual geometry uses the real tower-to-tower distance instead (see _golden_gate_geometry)
+const SIDE_SPAN_LENGTH: float = 343.0       # official, each side
+const GG_DECK_HEIGHT: float = 67.0          # official clearance above water; the deck is simplified as flat at this height along its full length
+const GG_DECK_WIDTH: float = 19.0           # official, curb-to-curb (sidewalks not separately modeled)
+const GG_DECK_THICKNESS: float = 3.0        # not an official figure; a reasonable visual thickness for the deck box
+const GG_MAIN_CABLE_DIAMETER: float = 0.92  # official
+const GG_MAIN_CABLE_SAG: float = 143.0      # secondary-source figure only, not corroborated against a primary source — see 02_design.md
+const GG_MAIN_CABLE_SEGMENTS: int = 32      # parabola smoothness vs. mesh count tradeoff
+const GG_SUSPENDER_SPACING: float = 15.2    # official (50ft)
+const GG_SUSPENDER_DIAMETER: float = 0.068  # official (2-11/16in)
+const GG_TOWER_LEG_ACROSS: float = 27.0     # estimate: not published; roadway width (19m) + sidewalks, with the cables sitting just outside them
+const GG_TOWER_LEG_ALONG: float = 9.0       # estimate: not published; suspension towers are typically slimmer along the direction of travel than across it
+const GG_TOWER_LEG_SIZE: float = 3.0        # estimate: leg cross-section (square)
+const GG_TOWER_BRACE_LEVELS: int = 6        # simplified lattice (evenly spaced rings), not the real tower's finer diagonal cross-bracing
+const GG_TOWER_BRACE_THICKNESS: float = 1.0 # estimate
+
+# Shared geometry for both landmark building (_build_golden_gate_bridge) and
+# spawn placement (_compute_spawn): tower positions (base height sampled from
+# the DEM, same convention as the Otorii — see the note on _is_water in
+# 02_design.md about why these come out near sea level for this stage) and
+# the bridge's actual bearing, derived from the two tower positions rather
+# than assumed, so geometry stays self-consistent even though the north
+# tower's coordinates were themselves derived (see 02_design.md/03_plan.md
+# Phase 24-4) — the real computed span_len is used for the cable parabola,
+# not GG_MAIN_SPAN_OFFICIAL, so there's no seam between "official" and
+# "measured" numbers.
+func _golden_gate_geometry(location_id: String, lm: Dictionary) -> Dictionary:
+	var s_ll: Dictionary = lm["south_tower"]
+	var n_ll: Dictionary = lm["north_tower"]
+	var s_xz := _latlon_to_local_xz(location_id, s_ll["lat"], s_ll["lon"])
+	var n_xz := _latlon_to_local_xz(location_id, n_ll["lat"], n_ll["lon"])
+	var south_pos := Vector3(s_xz.x, _height_at_local_xz(location_id, s_xz), s_xz.y)
+	var north_pos := Vector3(n_xz.x, _height_at_local_xz(location_id, n_xz), n_xz.y)
+	var delta := north_pos - south_pos
+	var span_len: float = Vector2(delta.x, delta.z).length()
+	var along := Vector3(delta.x, 0.0, delta.z).normalized()
+	var across := Vector3(-along.z, 0.0, along.x)
+	return {
+		"south_pos": south_pos, "north_pos": north_pos,
+		"along": along, "across": across, "span_len": span_len,
+	}
+
+func _build_golden_gate_bridge(location_id: String, lm: Dictionary) -> void:
+	var geo := _golden_gate_geometry(location_id, lm)
+	var south_pos: Vector3 = geo["south_pos"]
+	var north_pos: Vector3 = geo["north_pos"]
+	var along: Vector3 = geo["along"]
+	var across: Vector3 = geo["across"]
+	var span_len: float = geo["span_len"]
+
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.72, 0.30, 0.13)  # International Orange
+	steel.roughness = 0.6
+	steel.metallic = 0.3
+
+	var root := StaticBody3D.new()
+
+	_build_gg_tower(root, south_pos, GG_TOWER_HEIGHT, along, across, steel)
+	_build_gg_tower(root, north_pos, GG_TOWER_HEIGHT, along, across, steel)
+
+	# Two main cables, one on each side of the deck, each with its own
+	# suspenders and simplified side-span cable.
+	for side: float in [-1.0, 1.0]:
+		var offset: Vector3 = across * (GG_TOWER_LEG_ACROSS * 0.5 * side)
+		var s_pt: Vector3 = south_pos + offset
+		var n_pt: Vector3 = north_pos + offset
+		_build_gg_main_cable(root, s_pt, span_len, along, steel)
+		_build_gg_side_span_cable(root, s_pt, -along, steel)
+		_build_gg_side_span_cable(root, n_pt, along, steel)
+		_build_gg_suspenders(root, s_pt, span_len, along, steel)
+
+	_build_gg_deck(root, south_pos, north_pos, along, across, steel)
+
+	_static_body.add_child(root)
+
+# One tower: 4 vertical legs at the real footprint estimate (see GG_TOWER_*
+# above), plus evenly-spaced horizontal bracing rings with open gaps between
+# them so near-structure flying can pass through the tower rather than into
+# a solid block. Collision is legs-only (same simplification as the Otorii's
+# pillars) — the bracing is visual only, matching the Otorii's tie-beams.
+func _build_gg_tower(root: Node3D, base_pos: Vector3, top_y: float, along: Vector3, across: Vector3, material: Material) -> void:
+	var half_along := along * (GG_TOWER_LEG_ALONG * 0.5)
+	var half_across := across * (GG_TOWER_LEG_ACROSS * 0.5)
+	# [along-, across-], [along-, across+], [along+, across-], [along+, across+]
+	var corners: Array[Vector3] = [
+		base_pos - half_along - half_across,
+		base_pos - half_along + half_across,
+		base_pos + half_along - half_across,
+		base_pos + half_along + half_across,
+	]
+
+	for c in corners:
+		var bottom := Vector3(c.x, base_pos.y, c.z)
+		var top := Vector3(c.x, top_y, c.z)
+		_add_beam_segment(root, bottom, top, GG_TOWER_LEG_SIZE, material)
+		var col := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(GG_TOWER_LEG_SIZE, top_y - base_pos.y, GG_TOWER_LEG_SIZE)
+		col.shape = box
+		col.position = (bottom + top) * 0.5
+		root.add_child(col)
+
+	for i in range(1, GG_TOWER_BRACE_LEVELS):
+		var t := float(i) / float(GG_TOWER_BRACE_LEVELS)
+		var brace_y: float = lerp(base_pos.y, top_y, t)
+		var mm := Vector3(corners[0].x, brace_y, corners[0].z)
+		var mp := Vector3(corners[1].x, brace_y, corners[1].z)
+		var pm := Vector3(corners[2].x, brace_y, corners[2].z)
+		var pp := Vector3(corners[3].x, brace_y, corners[3].z)
+		_add_beam_segment(root, mm, mp, GG_TOWER_BRACE_THICKNESS, material)  # across-beam, along-
+		_add_beam_segment(root, pm, pp, GG_TOWER_BRACE_THICKNESS, material)  # across-beam, along+
+		_add_beam_segment(root, mm, pm, GG_TOWER_BRACE_THICKNESS, material)  # along-beam, across-
+		_add_beam_segment(root, mp, pp, GG_TOWER_BRACE_THICKNESS, material)  # along-beam, across+
+
+# Main-span cable: a parabola (y = tower_top - 4*sag*t*(1-t), t in [0,1]),
+# the real shape a suspension cable takes under the deck's approximately
+# uniform load, approximated as GG_MAIN_CABLE_SEGMENTS straight cylinder
+# segments. `s_pt` is the south tower attachment point (already offset to
+# this cable's side of the deck by the caller); the curve is walked toward
+# the north tower along `along`.
+func _build_gg_main_cable(root: Node3D, s_pt: Vector3, span_len: float, along: Vector3, material: Material) -> void:
+	var prev := Vector3(s_pt.x, GG_TOWER_HEIGHT, s_pt.z)
+	for i in range(1, GG_MAIN_CABLE_SEGMENTS + 1):
+		var t := float(i) / float(GG_MAIN_CABLE_SEGMENTS)
+		var p := s_pt + along * (span_len * t)
+		p.y = GG_TOWER_HEIGHT - 4.0 * GG_MAIN_CABLE_SAG * t * (1.0 - t)
+		_add_cylinder_segment(root, prev, p, GG_MAIN_CABLE_DIAMETER * 0.5, material)
+		prev = p
+
+# Side-span cable: simplified as a single straight segment from the tower
+# top down to sea level over SIDE_SPAN_LENGTH in the given direction (away
+# from the main span). The real side-span cable is a shallower catenary
+# ending at an anchorage well above sea level, but this project doesn't have
+# anchorage coordinates/height, so this is a deliberate simplification (see
+# 02_design.md "Phase B") rather than a researched shape.
+func _build_gg_side_span_cable(root: Node3D, tower_pt: Vector3, dir: Vector3, material: Material) -> void:
+	var top := Vector3(tower_pt.x, GG_TOWER_HEIGHT, tower_pt.z)
+	var far := tower_pt + dir * SIDE_SPAN_LENGTH
+	var bottom := Vector3(far.x, 0.0, far.z)
+	_add_cylinder_segment(root, top, bottom, GG_MAIN_CABLE_DIAMETER * 0.5, material)
+
+# Vertical suspenders from the main cable down to the deck, at the real
+# spacing (GG_SUSPENDER_SPACING), across the main span only (side-span
+# suspenders are omitted for now — see 02_design.md "Phase B" known gaps).
+func _build_gg_suspenders(root: Node3D, s_pt: Vector3, span_len: float, along: Vector3, material: Material) -> void:
+	var count := int(span_len / GG_SUSPENDER_SPACING)
+	for i in range(1, count):
+		var x: float = i * GG_SUSPENDER_SPACING
+		var t := x / span_len
+		var cable_y := GG_TOWER_HEIGHT - 4.0 * GG_MAIN_CABLE_SAG * t * (1.0 - t)
+		var p := s_pt + along * x
+		_add_cylinder_segment(
+			root, Vector3(p.x, cable_y, p.z), Vector3(p.x, GG_DECK_HEIGHT, p.z),
+			GG_SUSPENDER_DIAMETER * 0.5, material
+		)
+
+# Deck: a single flat box across the main span plus both side spans (real
+# roadway width, simplified constant thickness/height — see GG_DECK_* above).
+func _build_gg_deck(root: Node3D, south_pos: Vector3, north_pos: Vector3, along: Vector3, across: Vector3, material: Material) -> void:
+	var start := south_pos - along * SIDE_SPAN_LENGTH
+	var end := north_pos + along * SIDE_SPAN_LENGTH
+	var total_len: float = Vector2(end.x - start.x, end.z - start.z).length()
+	var center := (start + end) * 0.5
+	center.y = GG_DECK_HEIGHT
+
+	var mesh_inst := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(GG_DECK_WIDTH, GG_DECK_THICKNESS, total_len)
+	mesh_inst.mesh = mesh
+	mesh_inst.material_override = material
+	var deck_transform := Transform3D(Basis(across, Vector3.UP, along), center)
+	mesh_inst.transform = deck_transform
+	root.add_child(mesh_inst)
+
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = mesh.size
+	col.shape = box
+	col.transform = deck_transform
+	root.add_child(col)
+
+# Builds a straight box "beam" between two points with the given square
+# cross-section thickness, oriented so its long axis (local Z, matching
+# BoxMesh.size.z) points from a to b. Used for the tower's legs and
+# horizontal bracing.
+func _add_beam_segment(root: Node3D, a: Vector3, b: Vector3, thickness: float, material: Material) -> void:
+	var diff := b - a
+	var length := diff.length()
+	if length < 0.001:
+		return
+	var mesh_inst := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(thickness, thickness, length)
+	mesh_inst.mesh = mesh
+	mesh_inst.material_override = material
+	var z_axis := diff / length
+	var helper := Vector3.RIGHT if absf(z_axis.dot(Vector3.UP)) > 0.99 else Vector3.UP
+	var x_axis := helper.cross(z_axis).normalized()
+	var y_axis := z_axis.cross(x_axis).normalized()
+	mesh_inst.transform = Transform3D(Basis(x_axis, y_axis, z_axis), (a + b) * 0.5)
+	root.add_child(mesh_inst)
+
+# Builds a cylinder "cable" segment between two points, oriented so its
+# height axis (local Y, CylinderMesh's default) points from a to b. Used for
+# the main cables, side-span cables, and suspenders.
+func _add_cylinder_segment(root: Node3D, a: Vector3, b: Vector3, radius: float, material: Material) -> void:
+	var diff := b - a
+	var length := diff.length()
+	if length < 0.001:
+		return
+	var mesh_inst := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = length
+	mesh_inst.mesh = mesh
+	mesh_inst.material_override = material
+	var y_axis := diff / length
+	var helper := Vector3.RIGHT if absf(y_axis.dot(Vector3.UP)) > 0.99 else Vector3.UP
+	var x_axis := helper.cross(y_axis).normalized()
+	var z_axis := x_axis.cross(y_axis).normalized()
+	mesh_inst.transform = Transform3D(Basis(x_axis, y_axis, z_axis), (a + b) * 0.5)
+	root.add_child(mesh_inst)
