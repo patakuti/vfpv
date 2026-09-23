@@ -93,6 +93,7 @@ See [ANDROID.md](ANDROID.md).
 | `:stage fuji` | Switch to real-world Mt. Fuji stage (downloads GSI elevation data) |
 | `:stage miyajima` | Switch to real-world Miyajima stage (Itsukushima Shrine Otorii, astronomically accurate sunset lighting) |
 | `:stage goldengate` | Switch to real-world Golden Gate Bridge stage (downloads AWS Terrain Tiles elevation data) |
+| `:stage test_sydney` | Switch to real-world Sydney Harbour Bridge stage (downloads AWS Terrain Tiles elevation data) — experimental; terrain fidelity is on hold, see below |
 | `:quality low/mid/high/auto` | Set rendering quality (default: auto) |
 | `:audio music` | BGM music |
 | `:audio drone` | Drone propeller sound (pitch linked to motor output) |
@@ -103,12 +104,13 @@ See [ANDROID.md](ANDROID.md).
 ## Features
 
 - **Vi-style controls** — Navigate with familiar vim keybindings
-- **Stage selection** — `:stage terrain` for natural terrain, `:stage city` for urban flying, `:stage canyon` for towering rock walls, `:stage tube` for enclosed tunnel racing, `:stage fuji`/`:stage miyajima`/`:stage goldengate` for real-world terrain
-- **Real-world terrain stage** — Live-downloads elevation data for Mt. Fuji, Miyajima, and the Golden Gate Bridge, and builds a real terrain patch to fly around (requires network access; Desktop/Web only). Japanese locations use Japan's Geospatial Information Authority (GSI); the Golden Gate Bridge uses AWS Terrain Tiles, since GSI only covers Japan
+- **Stage selection** — `:stage terrain` for natural terrain, `:stage city` for urban flying, `:stage canyon` for towering rock walls, `:stage tube` for enclosed tunnel racing, `:stage fuji`/`:stage miyajima`/`:stage goldengate`/`:stage test_sydney` for real-world terrain
+- **Real-world terrain stage** — Live-downloads elevation data for Mt. Fuji, Miyajima, the Golden Gate Bridge, and (experimentally) Sydney Harbour, and builds a real terrain patch to fly around (requires network access; Desktop/Web only). Japanese locations use Japan's Geospatial Information Authority (GSI); the Golden Gate Bridge and Sydney use AWS Terrain Tiles, since GSI only covers Japan
   - Real terrain shading: slope- and local-relief-based shading (from the actual downloaded elevation data) so gentle real-world mountains read clearly instead of looking flat
   - Miyajima stage: adds a to-scale Itsukushima Shrine Otorii (built from primitives, positioned from real-world coordinates) and points the sun at its real astronomical position for today's sunset at that location
   - Golden Gate Bridge stage: adds a to-scale bridge (towers, main cables on a real parabola, suspenders, deck — all built from primitives at real-world coordinates/dimensions where published) with an open lattice tower structure to fly through
-  - Water reflection: the sea (wherever the elevation tiles have no data, or — for the Golden Gate Bridge's AWS-sourced data — below sea level) is a real-time planar reflection — a mirror camera renders the scene and composites it onto the water surface, so the aircraft, terrain, and sky all reflect
+  - Sydney Harbour Bridge stage (`:stage test_sydney`, **experimental/on hold**): adds a to-scale steel arch bridge (arch, deck, hangers, and four granite pylons, built from primitives at real-world coordinates/dimensions) to fly through, plus the Sydney Opera House (shells approximated as sections of the real 75.2m-radius sphere the actual roof is cut from, per Utzon/Arup's "Spherical Solution"). The surrounding harbour terrain's fidelity against the real coastline has not been validated closely enough yet, so this stage is kept under the `test_sydney` name until that's addressed
+  - Water reflection: the sea (wherever the elevation tiles have no data, or — for AWS-sourced data — below a sea-level threshold, tuned per location since not every source carries real bathymetry) is a real-time planar reflection — a mirror camera renders the scene and composites it onto the water surface, so the aircraft, terrain, and sky all reflect
   - Water-proximity cues: the low-altitude particle effect switches to white spray over water (color/spread only — intensity is altitude-based, matching the existing dust behavior), and a rotor-downwash ripple (one interfering wave per rotor, at their real positions) appears on the water directly under the aircraft, strengthening as altitude drops
 - **Procedural terrain** — Infinite Perlin noise terrain with 3 biomes (canyon, mountain, plains)
 - **City stage** — Dense urban grid with buildings 15–100m tall, tight 8–15m street gaps
@@ -181,5 +183,8 @@ This tool was designed and implemented entirely by Claude. The human provided th
 - Music: "Future Travel" by Zodik ([CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/)) — https://opengameart.org/content/zodik-future-travel
 - Elevation data (Mt. Fuji, Miyajima): [国土地理院](https://www.gsi.go.jp/) (Geospatial Information Authority of Japan), 標高タイル（基盤地図情報数値標高モデル）
 - Elevation data (Golden Gate Bridge): [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (Terrarium format), sourced from 3DEP data courtesy of the U.S. Geological Survey
-- Otorii location, Golden Gate Bridge tower positions: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors ([ODbL](https://opendatacommons.org/licenses/odbl/))
+- Elevation data (Sydney Harbour): [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (Terrarium format), sourced from SRTM and GMTED2010 data courtesy of the U.S. Geological Survey
+- Otorii location, Golden Gate Bridge tower positions, Sydney Harbour Bridge/Opera House positions: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors ([ODbL](https://opendatacommons.org/licenses/odbl/))
 - Golden Gate Bridge dimensions: [Golden Gate Bridge Highway and Transportation District](https://www.goldengate.org/bridge/history-research/statistics-data/design-construction-stats/)
+- Sydney Harbour Bridge dimensions: Wikipedia, [BridgeClimb](https://www.bridgeclimb.com/explore/the-bridge), Britannica (cross-checked)
+- Sydney Opera House dimensions and "Spherical Solution" shell geometry: [Sydney Opera House](https://www.sydneyoperahouse.com/our-story/the-spherical-solution), Wikipedia

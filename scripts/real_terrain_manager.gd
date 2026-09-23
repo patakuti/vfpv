@@ -104,6 +104,68 @@ const LOCATIONS: Dictionary = {
 		# view can be checked.
 		"lighting": {"month": 3, "day": 20, "target_elevation_deg": 3.0, "light_color": Color(1.0, 0.72, 0.45)},
 	},
+	"test_sydney": {
+		"name": "Sydney Harbour Bridge (experimental, terrain fidelity on hold)",
+		# Midpoint between the bridge and the Opera House (~700m apart); a
+		# 3x3 tile patch (~5.8km at zoom 14) comfortably covers both plus the
+		# surrounding harbour and shoreline. Verified live (02_design.md
+		# "Phase C"): this area's tiles come from SRTM+GMTED (imagery-sources
+		# metadata), not a topobathy dataset, so unlike goldengate the water
+		# here has no real depth — it decodes to noisy near-zero values.
+		"lat": -33.8546, "lon": 151.2130,
+		"tile_source": "aws_terrarium",
+		# Raised from the aws_terrarium default (0.0m): live decoding found
+		# open-harbour water noise up to +2.3m here (vs. Golden Gate's clean
+		# real-bathymetry signal), which would otherwise misclassify small
+		# patches of open water as isolated land. Shoreline land measured
+		# 21m+, so this has a wide safety margin either way.
+		"water_level": 3.0,
+		"landmarks": [
+			{
+				"type": "sydney_harbour_bridge",
+				# Both ends of the deck (Cahill Expressway), OpenStreetMap way
+				# 142518144, directly sourced (not derived): south end at
+				# Dawes Point (https://www.openstreetmap.org/node/1559637897),
+				# north end at Milsons Point
+				# (https://www.openstreetmap.org/node/929122617). These sit on
+				# the bridge's own roadway centerline, so they're used as the
+				# arch's springing anchors the same way the Golden Gate
+				# towers anchor its cables — actual distance between them
+				# (~532m) is used for the arch geometry instead of the
+				# official 503m arch-span figure, for the same
+				# no-seam-with-real-coordinates reason as goldengate's
+				# _golden_gate_geometry.
+				"south_anchor": {"lat": -33.8544717, "lon": 151.2095207},
+				"north_anchor": {"lat": -33.8502240, "lon": 151.2121728},
+			},
+			{
+				"type": "opera_house",
+				# OpenStreetMap relation 9596872 (amenity=arts_centre) center,
+				# https://www.openstreetmap.org/relation/9596872, used for
+				# ground-height sampling.
+				"lat": -33.8571980, "lon": 151.2151234,
+				# Two of the relation's own member nodes, offline-selected
+				# (02_design.md "Phase C") as the extreme ends of the
+				# footprint's long axis (~174m apart, close to the official
+				# 183m overall length) — used to compute the building's real
+				# heading at runtime via atan2, the same no-guessing approach
+				# as the bridge's south/north anchors, instead of hardcoding
+				# an offline-measured angle (which would risk a sign/axis
+				# mistake between the offline analysis and this project's
+				# in-game +Z=south convention).
+				"axis_a": {"lat": -33.8579291, "lon": 151.2153359},
+				"axis_b": {"lat": -33.8563128, "lon": 151.2150934},
+			},
+		],
+		# Placeholder, NOT tuned (same reasoning as goldengate's lighting:
+		# no landmark-occlusion analysis yet since the models don't exist).
+		# Southern-hemisphere sun behavior verified live in a standalone
+		# Python port of solar_position.gd's NOAA formula (02_design.md
+		# "Phase C"): equinox sunset azimuth ~269 deg (due west, same as the
+		# northern hemisphere), winter/summer solstices swing the opposite
+		# way from Miyajima's northern-hemisphere case, as expected.
+		"lighting": {"month": 3, "day": 20, "target_elevation_deg": 3.0, "light_color": Color(1.0, 0.72, 0.45)},
+	},
 }
 
 # Quality presets: downsample factor (source pixels per mesh cell)
@@ -197,6 +259,14 @@ func _download_location(location_id: String, main: Node) -> void:
 	var source: Dictionary = TILE_SOURCES[tile_source]
 	var zoom: int = source["zoom"]
 	var url_template: String = source["url_template"]
+	# aws_terrarium's sea-level threshold, overridable per location: verified
+	# live (see 02_design.md "Phase C") that Sydney's tiles come from
+	# SRTM+GMTED (no real bathymetry, unlike Golden Gate's NED topobathy) and
+	# carry a few meters of water-surface noise (+2.3m observed) that the
+	# global 0.0m default would misclassify as isolated land specks in open
+	# water. Land there sits at 21m+, so raising the threshold per-location
+	# is safe.
+	var water_level: float = loc.get("water_level", AWS_TERRARIUM_WATER_LEVEL)
 
 	var center := _latlon_to_tile_f(loc["lat"], loc["lon"], zoom)
 	var tx0 := int(floor(center.x)) - GRID / 2
@@ -236,7 +306,7 @@ func _download_location(location_id: String, main: Node) -> void:
 					var iy := gy * TILE_SIZE + py
 					var idx := iy * grid_px + ix
 					var h := _decode_height(c, tile_source)
-					var is_water := _is_water(c, h, tile_source)
+					var is_water := _is_water(c, h, tile_source, water_level)
 					# Water cells are flattened to sea level here, at the
 					# source, rather than in the mesh builder: gsi's no-data
 					# pixels already decode to a hardcoded 0.0 (see
@@ -339,10 +409,12 @@ func _decode_height(c: Color, tile_source: String) -> float:
 
 # Water detection is tile-source-specific: gsi flags water via a no-data
 # pixel code (its DEM only covers land), aws_terrarium via an elevation
-# threshold (it carries real bathymetry, see the file-level comment above).
-func _is_water(c: Color, h: float, tile_source: String) -> bool:
+# threshold (it carries real bathymetry — or, for sources without it like
+# Sydney's SRTM+GMTED tiles, a noisy near-zero value — see the file-level
+# comment above and the per-location water_level override in LOCATIONS).
+func _is_water(c: Color, h: float, tile_source: String, water_level: float) -> bool:
 	if tile_source == "aws_terrarium":
-		return h <= AWS_TERRARIUM_WATER_LEVEL
+		return h <= water_level
 	return _is_no_data_gsi(c)
 
 func _latlon_to_tile_f(lat: float, lon: float, zoom: int) -> Vector2:
@@ -1014,6 +1086,17 @@ func _compute_spawn(location_id: String, dst_size: int, cell_m: float, max_h: fl
 			_spawn_position = approach + Vector3(0.0, GG_DECK_HEIGHT + 40.0, 0.0)
 			_spawn_rotation = Vector3(0.0, atan2(geo["along"].x, geo["along"].z) + PI, 0.0)
 			return
+		if lm["type"] == "sydney_harbour_bridge":
+			# Approach from south of the south anchor (Dawes Point side), at
+			# deck height, facing along the bridge (north) so the flight path
+			# runs through the arch opening — same near-structure-flying idea
+			# as the Golden Gate spawn, adapted to a single-span arch instead
+			# of two towers with side spans.
+			var geo := _sydney_harbour_bridge_geometry(location_id, lm)
+			var approach: Vector3 = geo["south_pos"] - geo["along"] * 200.0
+			_spawn_position = approach + Vector3(0.0, SHB_DECK_HEIGHT + 40.0, 0.0)
+			_spawn_rotation = Vector3(0.0, atan2(geo["along"].x, geo["along"].z) + PI, 0.0)
+			return
 
 	# Default: spawn above and south of the highest point, facing -Z (north,
 	# toward the peak) — GSI tile rows increase southward, so +Z is south.
@@ -1023,9 +1106,10 @@ func _compute_spawn(location_id: String, dst_size: int, cell_m: float, max_h: fl
 	_spawn_position = Vector3(center_x, max_h + 150.0, center_z + offset_z)
 	_spawn_rotation = Vector3.ZERO
 
-# Places decorative/gameplay landmarks (currently just the Otorii and the
-# Golden Gate Bridge) that the DEM cannot capture (structures standing in or
-# right at the edge of water read as "no data"/near-zero elevation).
+# Places decorative/gameplay landmarks (currently the Otorii, the Golden
+# Gate Bridge, the Sydney Harbour Bridge, and the Sydney Opera House) that
+# the DEM cannot capture (structures standing in or right at the edge of
+# water read as "no data"/near-zero elevation).
 func _build_landmarks(location_id: String) -> void:
 	var loc: Dictionary = LOCATIONS[location_id]
 	for lm in loc.get("landmarks", []):
@@ -1036,6 +1120,10 @@ func _build_landmarks(location_id: String) -> void:
 				_build_torii(Vector3(xz.x, base_h, xz.y))
 			"golden_gate_bridge":
 				_build_golden_gate_bridge(location_id, lm)
+			"sydney_harbour_bridge":
+				_build_sydney_harbour_bridge(location_id, lm)
+			"opera_house":
+				_build_opera_house(location_id, lm)
 
 # Simplified O-torii of Itsukushima Shrine, built from primitives (same
 # technique as the player drone model). Confirmed real dimensions (see
@@ -1386,4 +1474,322 @@ func _add_cylinder_segment(root: Node3D, a: Vector3, b: Vector3, radius: float, 
 	var x_axis := helper.cross(y_axis).normalized()
 	var z_axis := x_axis.cross(y_axis).normalized()
 	mesh_inst.transform = Transform3D(Basis(x_axis, y_axis, z_axis), (a + b) * 0.5)
+	root.add_child(mesh_inst)
+
+# Sydney Harbour Bridge, built from primitives (same technique as the Otorii
+# and the Golden Gate Bridge) — but this is a single-span steel arch, not a
+# suspension bridge, so the shape (an arch rising from deck level, not a
+# cable sagging from towers) and the four decorative pylons are new relative
+# to _build_golden_gate_bridge. Confirmed real dimensions (Wikipedia,
+# BridgeClimb, Britannica — cross-checked, see 02_design.md "Phase C"): arch
+# span 503m, arch summit 134m above sea level, navigation clearance 49m at
+# mid-span, full width 48.8m, four granite pylons 89m tall each (decorative,
+# not load-bearing per Wikipedia). Pylon footprint, hanger spacing, and the
+# arch's cross-section are NOT published anywhere this project found; they
+# are proportional estimates (see SHB_* constants below), same status as the
+# Golden Gate tower's unpublished leg spacing.
+const SHB_ARCH_SUMMIT_HEIGHT: float = 134.0  # official, above sea level (this stage's Y=0)
+const SHB_DECK_HEIGHT: float = 49.0          # official navigation clearance at mid-span; the deck is simplified as flat at this height along its full length (same simplification as GG_DECK_HEIGHT)
+const SHB_ARCH_RISE: float = SHB_ARCH_SUMMIT_HEIGHT - SHB_DECK_HEIGHT  # derived: how far the arch crown rises above deck level in this simplified model
+const SHB_DECK_WIDTH: float = 48.8           # official, full width (8 road lanes + 2 rail tracks + footway + cycleway)
+const SHB_DECK_THICKNESS: float = 4.0        # not an official figure; a reasonable visual thickness for the deck box
+const SHB_ARCH_SEGMENTS: int = 32            # curve smoothness vs. mesh count tradeoff, same as GG_MAIN_CABLE_SEGMENTS
+const SHB_ARCH_TUBE_RADIUS: float = 2.0      # estimate: the real arch chords are large box-truss members; approximated here as a round tube for a recognizable silhouette
+const SHB_PYLON_HEIGHT: float = 89.0         # official
+const SHB_PYLON_SIZE: float = 14.0           # estimate: footprint of each granite pylon (square, untapered simplification — the real pylons taper and are ornamented)
+const SHB_HANGER_SPACING: float = 20.0       # estimate: not published
+const SHB_HANGER_RADIUS: float = 0.3         # estimate
+const SHB_HANGER_SPAN_FRACTION: float = 0.6  # estimate: hangers only in the central portion of the span — near the anchors the deck sits close to the arch's own springing height already, same simplification level as goldengate's omitted side-span suspenders
+
+# Shared geometry for both landmark building (_build_sydney_harbour_bridge)
+# and spawn placement (_compute_spawn): anchor positions (base height
+# sampled from the DEM) and the bridge's actual bearing/span, derived from
+# the two anchor positions rather than assumed — same approach as
+# _golden_gate_geometry, and for the same reason (no seam between "official"
+# and "measured" numbers). The anchors here are the bridge deck's own
+# surveyed OSM endpoints (not derived from an official span figure like
+# goldengate's north tower was), so span_len (~532m) comes out a bit longer
+# than the official 503m arch span — the deck way's endpoints sit slightly
+# outside the pure arch section, into the approach viaducts (02_design.md
+# "Phase C").
+func _sydney_harbour_bridge_geometry(location_id: String, lm: Dictionary) -> Dictionary:
+	var s_ll: Dictionary = lm["south_anchor"]
+	var n_ll: Dictionary = lm["north_anchor"]
+	var s_xz := _latlon_to_local_xz(location_id, s_ll["lat"], s_ll["lon"])
+	var n_xz := _latlon_to_local_xz(location_id, n_ll["lat"], n_ll["lon"])
+	var south_pos := Vector3(s_xz.x, _height_at_local_xz(location_id, s_xz), s_xz.y)
+	var north_pos := Vector3(n_xz.x, _height_at_local_xz(location_id, n_xz), n_xz.y)
+	var delta := north_pos - south_pos
+	var span_len: float = Vector2(delta.x, delta.z).length()
+	var along := Vector3(delta.x, 0.0, delta.z).normalized()
+	var across := Vector3(-along.z, 0.0, along.x)
+	return {
+		"south_pos": south_pos, "north_pos": north_pos,
+		"along": along, "across": across, "span_len": span_len,
+	}
+
+func _build_sydney_harbour_bridge(location_id: String, lm: Dictionary) -> void:
+	var geo := _sydney_harbour_bridge_geometry(location_id, lm)
+	var south_pos: Vector3 = geo["south_pos"]
+	var north_pos: Vector3 = geo["north_pos"]
+	var along: Vector3 = geo["along"]
+	var across: Vector3 = geo["across"]
+	var span_len: float = geo["span_len"]
+
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.30, 0.33, 0.34)  # "Harbour Bridge Grey"
+	steel.roughness = 0.65
+	steel.metallic = 0.25
+
+	var granite := StandardMaterial3D.new()
+	granite.albedo_color = Color(0.55, 0.50, 0.43)
+	granite.roughness = 0.9
+
+	var root := StaticBody3D.new()
+
+	var deck_start := Vector3(south_pos.x, SHB_DECK_HEIGHT, south_pos.z)
+	var deck_end := Vector3(north_pos.x, SHB_DECK_HEIGHT, north_pos.z)
+
+	# Two arch ribs, one on each side of the deck (same "two main cables"
+	# idea as the Golden Gate), each with its own set of hangers down to the
+	# deck.
+	for side: float in [-1.0, 1.0]:
+		var offset: Vector3 = across * (SHB_DECK_WIDTH * 0.5 * side)
+		var s_pt: Vector3 = deck_start + offset
+		_build_shb_arch_rib(root, s_pt, span_len, along, steel)
+		_build_shb_hangers(root, s_pt, span_len, along, steel)
+
+	_build_shb_deck(root, deck_start, deck_end, along, across, steel)
+
+	var pylon_offset := across * (SHB_DECK_WIDTH * 0.5 + SHB_PYLON_SIZE * 0.5)
+	for anchor_pos: Vector3 in [south_pos, north_pos]:
+		for side: float in [-1.0, 1.0]:
+			var pylon_xz := Vector2(anchor_pos.x, anchor_pos.z) + Vector2(pylon_offset.x, pylon_offset.z) * side
+			var base_y := _height_at_local_xz(location_id, pylon_xz)
+			_build_shb_pylon(root, Vector3(pylon_xz.x, base_y, pylon_xz.y), granite)
+
+	_static_body.add_child(root)
+
+# One arch rib: a parabola from deck height at the anchor up to the real
+# summit height (134m) at mid-span (y = deck_height + 4*rise*t*(1-t)),
+# walked as SHB_ARCH_SEGMENTS straight cylinder segments — the same "curve
+# as straight segments" technique as _build_gg_main_cable, just rising
+# instead of sagging. The real structure is a box-truss arch, not a round
+# tube; this is a deliberate silhouette-level simplification (see
+# 02_design.md "Phase C"), same status as goldengate's tower lattice.
+func _build_shb_arch_rib(root: Node3D, s_pt: Vector3, span_len: float, along: Vector3, material: Material) -> void:
+	var prev := s_pt
+	for i in range(1, SHB_ARCH_SEGMENTS + 1):
+		var t := float(i) / float(SHB_ARCH_SEGMENTS)
+		var p := s_pt + along * (span_len * t)
+		p.y = SHB_DECK_HEIGHT + 4.0 * SHB_ARCH_RISE * t * (1.0 - t)
+		_add_cylinder_segment(root, prev, p, SHB_ARCH_TUBE_RADIUS, material)
+		prev = p
+
+# Vertical hangers connecting the arch to the deck, in the central portion
+# of the span only (SHB_HANGER_SPAN_FRACTION) — near the anchors the arch is
+# already close to deck height, so hangers there would be a near-zero-length
+# seam. Spacing/radius are unpublished estimates.
+func _build_shb_hangers(root: Node3D, s_pt: Vector3, span_len: float, along: Vector3, material: Material) -> void:
+	var margin: float = span_len * (1.0 - SHB_HANGER_SPAN_FRACTION) * 0.5
+	var count := int((span_len - 2.0 * margin) / SHB_HANGER_SPACING)
+	for i in range(1, count):
+		var x: float = margin + i * SHB_HANGER_SPACING
+		var t := x / span_len
+		var arch_y: float = SHB_DECK_HEIGHT + 4.0 * SHB_ARCH_RISE * t * (1.0 - t)
+		var p := s_pt + along * x
+		_add_cylinder_segment(
+			root, Vector3(p.x, arch_y, p.z), Vector3(p.x, SHB_DECK_HEIGHT, p.z),
+			SHB_HANGER_RADIUS, material
+		)
+
+# Deck: a single flat box across the full anchor-to-anchor span (real width,
+# simplified constant thickness/height — see SHB_DECK_* above). Unlike the
+# Golden Gate, there's no separate side-span concept here: the anchors
+# already cover the full harbour crossing.
+func _build_shb_deck(root: Node3D, start: Vector3, end: Vector3, along: Vector3, across: Vector3, material: Material) -> void:
+	var total_len: float = Vector2(end.x - start.x, end.z - start.z).length()
+	var center := (start + end) * 0.5
+
+	var mesh_inst := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(SHB_DECK_WIDTH, SHB_DECK_THICKNESS, total_len)
+	mesh_inst.mesh = mesh
+	mesh_inst.material_override = material
+	var deck_transform := Transform3D(Basis(across, Vector3.UP, along), center)
+	mesh_inst.transform = deck_transform
+	root.add_child(mesh_inst)
+
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = mesh.size
+	col.shape = box
+	col.transform = deck_transform
+	root.add_child(col)
+
+# One granite pylon: a simple untapered box at the real height (89m). The
+# real pylons are decorative (Wikipedia: they don't carry the arch's main
+# load) and strongly tapered/ornamented; this simplifies that to a plain
+# box, same simplification level as the Otorii's plain cylindrical pillars.
+func _build_shb_pylon(root: Node3D, base_pos: Vector3, material: Material) -> void:
+	var top := Vector3(base_pos.x, base_pos.y + SHB_PYLON_HEIGHT, base_pos.z)
+	_add_beam_segment(root, base_pos, top, SHB_PYLON_SIZE, material)
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(SHB_PYLON_SIZE, SHB_PYLON_HEIGHT, SHB_PYLON_SIZE)
+	col.shape = box
+	col.position = (base_pos + top) * 0.5
+	root.add_child(col)
+
+# Sydney Opera House, built from primitives. Confirmed real dimensions
+# (Wikipedia/dimensionsguide, cross-checked, see 02_design.md "Phase C"):
+# overall length 183m, width 120m, tallest shell 65m. The shells' defining
+# real engineering fact — Utzon and Arup's "Spherical Solution" — is that
+# every shell is cut from the surface of a single shared sphere; the radius
+# (75.2m, kept here as documented real-world context, corroborated only by
+# secondary/structural-engineering sources, not the official site itself —
+# same "secondary source only" status as GG_MAIN_CABLE_SAG) is NOT
+# mechanically used to shape the simplified shell mesh below — see
+# _build_opera_shell for why an earlier attempt to derive shell width from
+# it was wrong. The exact position/angle/count of the real ~10 shells is NOT
+# available in a form this project could script from, so OPERA_SHELL_LAYOUT
+# below is a visual approximation only (same simplification level as
+# goldengate's tower lattice), built from the real overall footprint/height
+# rather than the individual shells' real geometry.
+const OPERA_SPHERE_RADIUS: float = 75.2          # secondary-source figure only; real-world context, not used in the mesh formula (see above)
+const OPERA_LENGTH: float = 183.0                # official
+const OPERA_WIDTH: float = 120.0                 # official
+const OPERA_TALLEST_SHELL_HEIGHT: float = 65.0   # official
+const OPERA_PODIUM_HEIGHT: float = 10.0          # estimate: not published precisely
+
+# Rough visual layout of the shell groups (roughly: Concert Hall / Joan
+# Sutherland Theatre / Bennelong Restaurant), as fractions of
+# OPERA_LENGTH/OPERA_WIDTH/OPERA_TALLEST_SHELL_HEIGHT — NOT sourced from an
+# architectural drawing (see the const comment above). "aspect" is each
+# shell's base half-width as a fraction of its base half-length (an
+# estimate, ~2:1 length:width, matching real shell photos by eye — not
+# derived from OPERA_SPHERE_RADIUS, see _build_opera_shell).
+const OPERA_SHELL_LAYOUT: Array[Dictionary] = [
+	{"x": -0.24, "z": -0.16, "len": 0.24, "peak": 0.88, "aspect": 0.45},
+	{"x": -0.20, "z":  0.00, "len": 0.27, "peak": 1.00, "aspect": 0.45},
+	{"x": -0.24, "z":  0.16, "len": 0.24, "peak": 0.86, "aspect": 0.45},
+	{"x":  0.06, "z": -0.14, "len": 0.21, "peak": 0.78, "aspect": 0.45},
+	{"x":  0.10, "z":  0.00, "len": 0.23, "peak": 0.86, "aspect": 0.45},
+	{"x":  0.06, "z":  0.14, "len": 0.21, "peak": 0.75, "aspect": 0.45},
+	{"x":  0.34, "z": -0.07, "len": 0.11, "peak": 0.32, "aspect": 0.5},
+	{"x":  0.34, "z":  0.07, "len": 0.11, "peak": 0.30, "aspect": 0.5},
+]
+
+func _build_opera_house(location_id: String, lm: Dictionary) -> void:
+	var xz := _latlon_to_local_xz(location_id, lm["lat"], lm["lon"])
+	var base_h := _height_at_local_xz(location_id, xz)
+	var center := Vector3(xz.x, base_h, xz.y)
+
+	# Real heading from two of the OSM footprint's own extreme-end nodes
+	# (see the "axis_a"/"axis_b" comment in LOCATIONS), computed via atan2
+	# the same no-guessing way as the bridge's bearing — not an
+	# offline-hardcoded angle (which would risk a sign/axis mismatch between
+	# an offline analysis and this project's in-game +Z=south convention).
+	var a_xz := _latlon_to_local_xz(location_id, lm["axis_a"]["lat"], lm["axis_a"]["lon"])
+	var b_xz := _latlon_to_local_xz(location_id, lm["axis_b"]["lat"], lm["axis_b"]["lon"])
+	var delta := b_xz - a_xz
+	var forward := Vector3(delta.x, 0.0, delta.y).normalized()
+	var right := Vector3(-forward.z, 0.0, forward.x)
+
+	var concrete := StandardMaterial3D.new()
+	concrete.albedo_color = Color(0.80, 0.79, 0.76)
+	concrete.roughness = 0.85
+
+	var shell_material := StandardMaterial3D.new()
+	shell_material.albedo_color = Color(0.96, 0.95, 0.92)  # off-white/cream tiles
+	shell_material.roughness = 0.35
+
+	var root := StaticBody3D.new()
+
+	var podium_mesh_inst := MeshInstance3D.new()
+	var podium_mesh := BoxMesh.new()
+	podium_mesh.size = Vector3(OPERA_WIDTH, OPERA_PODIUM_HEIGHT, OPERA_LENGTH)
+	podium_mesh_inst.mesh = podium_mesh
+	podium_mesh_inst.material_override = concrete
+	var podium_center := center + Vector3.UP * (OPERA_PODIUM_HEIGHT * 0.5)
+	var podium_transform := Transform3D(Basis(right, Vector3.UP, forward), podium_center)
+	podium_mesh_inst.transform = podium_transform
+	root.add_child(podium_mesh_inst)
+
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = podium_mesh.size
+	col.shape = box
+	col.transform = podium_transform
+	root.add_child(col)
+
+	for spec: Dictionary in OPERA_SHELL_LAYOUT:
+		var shell_origin: Vector3 = center + forward * (spec["x"] * OPERA_LENGTH) + right * (spec["z"] * OPERA_WIDTH) + Vector3.UP * OPERA_PODIUM_HEIGHT
+		var half_len: float = spec["len"] * OPERA_LENGTH * 0.5
+		var half_width: float = half_len * spec["aspect"]
+		var peak: float = spec["peak"] * OPERA_TALLEST_SHELL_HEIGHT
+		_build_opera_shell(root, shell_origin, forward, right, half_len, half_width, peak, shell_material)
+
+	_static_body.add_child(root)
+
+# One shell "sail": a spindle of stacked elliptical rings that taper
+# linearly from the base (half_base_len x half_base_width) to a point at
+# peak_height. NOTE: an earlier version of this function tried to derive
+# half_width from half_base_len via a spherical-cap sagitta formula (width =
+# R - sqrt(R^2 - half_len^2), R = OPERA_SPHERE_RADIUS) to "genuinely" use
+# the real Spherical Solution geometry — but that formula relates a
+# spherical cap's HEIGHT to its base chord within a single cross-section; it
+# does not relate a shell's length to its width (two independent tangential
+# directions on the sphere), and at these length scales (base half-lengths
+# of 10-25m against a 75.2m sphere) it produced needle-thin, clearly-wrong
+# shells (caught by an actual in-game screenshot, not just headless mesh
+# counts). half_base_width is now an independent, explicit visual estimate
+# (see OPERA_SHELL_LAYOUT's "aspect") — a silhouette-level simplification,
+# same status as goldengate's side-span cable, not a claim of sphere-derived
+# geometry. `forward` is the tip-to-tip axis and `right` the width axis,
+# both in world space.
+func _build_opera_shell(root: Node3D, origin: Vector3, forward: Vector3, right: Vector3, half_base_len: float, half_base_width: float, peak_height: float, material: Material) -> void:
+	const HEIGHT_SEGMENTS: int = 10
+	const RING_SEGMENTS: int = 20
+
+	var rings: Array[PackedVector3Array] = []
+	for i in range(HEIGHT_SEGMENTS + 1):
+		var t := float(i) / float(HEIGHT_SEGMENTS)
+		var y := peak_height * t
+		# Quarter-circle falloff (not a linear taper, which renders as a
+		# straight-sided traffic cone) so the ring shrinks slowly near the
+		# base and curves in toward a point at the peak, reading as a
+		# rounded "sail" silhouette instead of a cone.
+		var taper := sqrt(max(0.0, 1.0 - t * t))
+		var half_len: float = half_base_len * taper
+		var half_width: float = half_base_width * taper
+		# Forward lean, growing with height: the real shells curve forward
+		# like a sail rather than rising straight up (estimate, visual only).
+		var lean: float = half_base_len * 0.35 * t * t
+		var ring_center: Vector3 = origin + forward * lean + Vector3.UP * y
+		var ring := PackedVector3Array()
+		for j in range(RING_SEGMENTS):
+			var theta := 2.0 * PI * float(j) / float(RING_SEGMENTS)
+			var local: Vector3 = forward * (half_len * cos(theta)) + right * (half_width * sin(theta))
+			ring.append(ring_center + local)
+		rings.append(ring)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(HEIGHT_SEGMENTS):
+		var ring_a: PackedVector3Array = rings[i]
+		var ring_b: PackedVector3Array = rings[i + 1]
+		for j in range(RING_SEGMENTS):
+			var j2 := (j + 1) % RING_SEGMENTS
+			st.add_vertex(ring_a[j])
+			st.add_vertex(ring_b[j])
+			st.add_vertex(ring_a[j2])
+			st.add_vertex(ring_a[j2])
+			st.add_vertex(ring_b[j])
+			st.add_vertex(ring_b[j2])
+	st.generate_normals()
+
+	var mesh_inst := MeshInstance3D.new()
+	mesh_inst.mesh = st.commit()
+	mesh_inst.material_override = material
 	root.add_child(mesh_inst)
