@@ -16,6 +16,7 @@ func _ready() -> void:
 	hud.setup(player, vi_input)
 	var terrain = $TerrainManager
 	terrain.setup(player)
+	$Player/LowAltitudeParticles.real_terrain = $RealTerrainManager
 	var post_process = $PostProcess
 	post_process.setup(player)
 	player.post_process = post_process
@@ -98,16 +99,16 @@ func switch_stage(stage_name: String) -> void:
 
 func _on_real_terrain_ready(location_id: String) -> void:
 	var real = $RealTerrainManager
+	var player = $Player
 	$TerrainManager.deactivate()
 	$CityManager.deactivate()
 	$CanyonManager.deactivate()
 	$TubeManager.deactivate()
-	real.activate()
+	real.activate(player)
 
 	if location_id == "miyajima":
 		_apply_sunset_lighting(real.LOCATIONS["miyajima"]["lat"], real.LOCATIONS["miyajima"]["lon"])
 
-	var player = $Player
 	player.set_spawn(real.get_spawn_position(), real.get_spawn_rotation())
 	player.respawn()
 

@@ -55,6 +55,12 @@ var _current_location: String = ""
 var _static_body: StaticBody3D
 var _mesh_instance: MeshInstance3D
 var _shared_material: StandardMaterial3D
+var _water_mesh_instance: MeshInstance3D
+var _water_material: ShaderMaterial
+var _water_viewport: SubViewport
+var _water_camera: Camera3D
+var _water_active: bool = false
+var _player: CharacterBody3D
 var _spawn_position: Vector3 = Vector3.ZERO
 var _spawn_rotation: Vector3 = Vector3.ZERO
 var _status_timer: float = 0.0
@@ -65,6 +71,11 @@ func _process(delta: float) -> void:
 		if _status_timer <= 0.0:
 			status_text = ""
 
+	if _water_active and _water_camera:
+		_update_water_camera()
+	if _water_active and _player:
+		_update_water_ripple()
+
 func _ready() -> void:
 	_http = HTTPRequest.new()
 	_http.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -73,6 +84,9 @@ func _ready() -> void:
 	_shared_material = StandardMaterial3D.new()
 	_shared_material.vertex_color_use_as_albedo = true
 	_shared_material.roughness = 0.85
+
+	_water_material = ShaderMaterial.new()
+	_water_material.shader = preload("res://shaders/water_reflection.gdshader")
 
 func is_loading() -> bool:
 	return _loading
@@ -193,6 +207,20 @@ func _height_at_local_xz(location_id: String, local_xz: Vector2) -> float:
 	var heights: PackedFloat32Array = data["heights"]
 	return heights[sz * size + sx]
 
+# Whether the given world position sits over a water cell of the active
+# location. `RealTerrainManager` itself sits at the world origin, so world
+# XZ and this location's local mesh XZ are the same coordinate space.
+func is_water_at_world_xz(world_pos: Vector3) -> bool:
+	if not _enabled or _current_location == "" or not _cache.has(_current_location):
+		return false
+	var data: Dictionary = _cache[_current_location]
+	var size: int = data["size"]
+	var resolution_m: float = data["resolution_m"]
+	var sx: int = clampi(int(round(world_pos.x / resolution_m)), 0, size - 1)
+	var sz: int = clampi(int(round(world_pos.z / resolution_m)), 0, size - 1)
+	var water_mask: PackedByteArray = data["water_mask"]
+	return water_mask[sz * size + sx] != 0
+
 func _is_no_data(c: Color) -> bool:
 	var r := int(round(c.r * 255.0))
 	var g := int(round(c.g * 255.0))
@@ -223,8 +251,9 @@ func _latlon_to_tile_f(lat: float, lon: float, zoom: int) -> Vector2:
 func _meters_per_pixel(lat: float, zoom: int) -> float:
 	return 156543.03392804097 * cos(deg_to_rad(lat)) / pow(2.0, zoom)
 
-func activate() -> void:
+func activate(player: CharacterBody3D) -> void:
 	_enabled = true
+	_player = player
 	if _static_body:
 		_static_body.visible = true
 
@@ -234,6 +263,10 @@ func deactivate() -> void:
 		_static_body.queue_free()
 		_static_body = null
 		_mesh_instance = null
+		_water_mesh_instance = null
+	_water_active = false
+	if _water_viewport:
+		_water_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 
 func get_spawn_position() -> Vector3:
 	return _spawn_position
@@ -266,7 +299,7 @@ func _fuji_height_color(h: float, max_h: float) -> Color:
 	var snow_t: float = clamp((t - FUJI_SNOW_THRESHOLD) / FUJI_SNOW_BLEND, 0.0, 1.0)
 	return body.lerp(snow, snow_t)
 
-const SEA_COLOR: Color = Color(0.06, 0.22, 0.32)  # flat sea color for no-data (ocean) cells
+const SEA_COLOR: Color = Color(0.04, 0.15, 0.22)  # flat sea color for no-data (ocean) cells
 const SLOPE_SHADE_STRENGTH: float = 0.45  # how dark steep faces get vs. flat ground
 const RELIEF_CONTRAST: float = 0.06       # brightness change per meter of local relief
 const RELIEF_CLAMP: float = 6.0           # cap relief before shading (avoid blown-out spikes)
@@ -380,8 +413,15 @@ func _build_mesh(location_id: String) -> void:
 		else:
 			colors[i] = _vertex_color(heights[i], max_h, normals[i], relief[i], location_id)
 
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# Quads where every corner is a water cell go to their own flat, unshaded
+	# mesh (its own reflective material); everything else — land and the
+	# land/water boundary — stays on the shaded land mesh exactly as before,
+	# so the existing coastline color blend is untouched.
+	var land_st := SurfaceTool.new()
+	land_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var water_st := SurfaceTool.new()
+	water_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var water_quad_count := 0
 
 	for z in range(dst_size - 1):
 		for x in range(dst_size - 1):
@@ -395,21 +435,45 @@ func _build_mesh(location_id: String) -> void:
 			var v01 := Vector3(x * cell_m, heights[idx01], (z + 1) * cell_m)
 			var v11 := Vector3((x + 1) * cell_m, heights[idx11], (z + 1) * cell_m)
 
-			st.set_color(colors[idx00]); st.set_normal(normals[idx00]); st.add_vertex(v00)
-			st.set_color(colors[idx10]); st.set_normal(normals[idx10]); st.add_vertex(v10)
-			st.set_color(colors[idx01]); st.set_normal(normals[idx01]); st.add_vertex(v01)
+			var all_water: bool = water[idx00] != 0 and water[idx10] != 0 and water[idx01] != 0 and water[idx11] != 0
+			if all_water:
+				water_quad_count += 1
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v00)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v10)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v01)
 
-			st.set_color(colors[idx10]); st.set_normal(normals[idx10]); st.add_vertex(v10)
-			st.set_color(colors[idx11]); st.set_normal(normals[idx11]); st.add_vertex(v11)
-			st.set_color(colors[idx01]); st.set_normal(normals[idx01]); st.add_vertex(v01)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v10)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v11)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v01)
+			else:
+				land_st.set_color(colors[idx00]); land_st.set_normal(normals[idx00]); land_st.add_vertex(v00)
+				land_st.set_color(colors[idx10]); land_st.set_normal(normals[idx10]); land_st.add_vertex(v10)
+				land_st.set_color(colors[idx01]); land_st.set_normal(normals[idx01]); land_st.add_vertex(v01)
 
-	var mesh := st.commit()
+				land_st.set_color(colors[idx10]); land_st.set_normal(normals[idx10]); land_st.add_vertex(v10)
+				land_st.set_color(colors[idx11]); land_st.set_normal(normals[idx11]); land_st.add_vertex(v11)
+				land_st.set_color(colors[idx01]); land_st.set_normal(normals[idx01]); land_st.add_vertex(v01)
+
+	var mesh := land_st.commit()
 
 	_static_body = StaticBody3D.new()
 	_mesh_instance = MeshInstance3D.new()
 	_mesh_instance.mesh = mesh
 	_mesh_instance.material_override = _shared_material
 	_static_body.add_child(_mesh_instance)
+
+	if water_quad_count > 0:
+		_water_mesh_instance = MeshInstance3D.new()
+		_water_mesh_instance.mesh = water_st.commit()
+		_water_mesh_instance.material_override = _water_material
+		_static_body.add_child(_water_mesh_instance)
+		_water_active = true
+		_setup_water_reflection()
+	else:
+		_water_mesh_instance = null
+		_water_active = false
+		if _water_viewport:
+			_water_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 
 	var col_shape := CollisionShape3D.new()
 	var hmap := HeightMapShape3D.new()
@@ -425,6 +489,92 @@ func _build_mesh(location_id: String) -> void:
 
 	_build_landmarks(location_id)
 	_compute_spawn(location_id, dst_size, cell_m, max_h)
+
+# Render resolution of the mirror-camera reflection, relative to the main
+# viewport. Downscaled for cost; SCREEN_UV mapping in water_reflection.gdshader
+# stays correct at any resolution as long as the aspect ratio matches.
+const WATER_REFLECTION_SCALE: float = 0.5
+
+# Lazily creates the SubViewport + mirror camera used for the water surface's
+# live reflection (shared world, no duplicated geometry) and points the water
+# material at its output texture. Re-entrant: safe to call on every stage
+# switch that has water, only builds the nodes once.
+func _setup_water_reflection() -> void:
+	if not _water_viewport:
+		_water_viewport = SubViewport.new()
+		_water_viewport.own_world_3d = false
+		_water_viewport.world_3d = get_viewport().world_3d
+		_water_viewport.transparent_bg = false
+		add_child(_water_viewport)
+
+		_water_camera = Camera3D.new()
+		_water_camera.current = true
+		_water_viewport.add_child(_water_camera)
+
+		_water_material.set_shader_parameter("reflection_tex", _water_viewport.get_texture())
+		_water_material.set_shader_parameter("water_color", SEA_COLOR)
+
+	_water_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_resize_water_viewport()
+
+func _resize_water_viewport() -> void:
+	var main_size: Vector2i = get_viewport().size
+	var target := Vector2i(
+		maxi(int(main_size.x * WATER_REFLECTION_SCALE), 1),
+		maxi(int(main_size.y * WATER_REFLECTION_SCALE), 1)
+	)
+	if _water_viewport.size != target:
+		_water_viewport.size = target
+
+# Mirrors the active game camera across the water plane (world Y=0) so the
+# SubViewport renders exactly what that camera would see reflected in a
+# perfectly flat mirror, matching FOV/near/far so SCREEN_UV sampling in the
+# water shader lines up 1:1 with the main view.
+func _update_water_camera() -> void:
+	var active_cam := get_viewport().get_camera_3d()
+	if not active_cam:
+		return
+	_water_camera.fov = active_cam.fov
+	_water_camera.near = active_cam.near
+	_water_camera.far = active_cam.far
+	_water_camera.transform = _mirror_transform_y(active_cam.global_transform)
+	_resize_water_viewport()
+
+# Matches low_altitude_particles.gd's ALTITUDE_THRESHOLD so the rotor-wash
+# ripple and the spray particles agree on what counts as "close".
+const RIPPLE_ALTITUDE_THRESHOLD: float = 30.0
+
+# Rotor-downwash ripple, one wave source per rotor: strongest at water level,
+# fading out by RIPPLE_ALTITUDE_THRESHOLD. The water surface is always at
+# world Y=0 (see is_water_at_world_xz), so altitude is just the player's Y.
+# The real rotor spacing (~1.1m across) is used as-is: an earlier version of
+# the ripple wavelength (3.5m) made the real spacing produce an interference
+# pattern indistinguishable from a single source, needing the rotor offsets
+# exaggerated up to 6x to read as 4 sources. Shortening the wavelength to
+# ~1.0m (see water_reflection.gdshader) fixed that at the source, so the
+# real spacing alone now produces a visibly distinct pattern.
+func _update_water_ripple() -> void:
+	var pos := _player.global_position
+	var intensity := 0.0
+	if is_water_at_world_xz(pos):
+		intensity = clamp(1.0 - pos.y / RIPPLE_ALTITUDE_THRESHOLD, 0.0, 1.0)
+	var rotor_positions_xz := PackedVector2Array()
+	for rotor_pos in _player.get_rotor_world_positions():
+		rotor_positions_xz.append(Vector2(rotor_pos.x, rotor_pos.z))
+	_water_material.set_shader_parameter("rotor_pos_xz", rotor_positions_xz)
+	_water_material.set_shader_parameter("ripple_intensity", intensity)
+
+# Reflects a transform across the world Y=0 plane: negate the Y component of
+# the origin and of each basis axis. Verified with a headless script (camera
+# looking straight down from above mirrors to looking straight up from
+# below, at the mirrored position) before relying on it here.
+func _mirror_transform_y(t: Transform3D) -> Transform3D:
+	var b := t.basis
+	var mx := Vector3(b.x.x, -b.x.y, b.x.z)
+	var my := Vector3(b.y.x, -b.y.y, b.y.z)
+	var mz := Vector3(b.z.x, -b.z.y, b.z.z)
+	var origin := Vector3(t.origin.x, -t.origin.y, t.origin.z)
+	return Transform3D(Basis(mx, my, mz), origin)
 
 func _compute_spawn(location_id: String, dst_size: int, cell_m: float, max_h: float) -> void:
 	var loc: Dictionary = LOCATIONS[location_id]

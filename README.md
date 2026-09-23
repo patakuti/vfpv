@@ -106,6 +106,8 @@ See [ANDROID.md](ANDROID.md).
 - **Real-world terrain stage** — Live-downloads elevation data from Japan's Geospatial Information Authority (GSI) for Mt. Fuji and Miyajima, and builds a real terrain patch to fly around (requires network access; Desktop/Web only)
   - Real terrain shading: slope- and local-relief-based shading (from the actual downloaded elevation data) so gentle real-world mountains read clearly instead of looking flat
   - Miyajima stage: adds a to-scale Itsukushima Shrine Otorii (built from primitives, positioned from real-world coordinates) and points the sun at its real astronomical position for today's sunset at that location
+  - Water reflection: the sea (wherever the elevation tiles have no data) is a real-time planar reflection — a mirror camera renders the scene and composites it onto the water surface, so the aircraft, terrain, and sky all reflect
+  - Water-proximity cues: the low-altitude particle effect switches to white spray over water (color/spread only — intensity is altitude-based, matching the existing dust behavior), and a rotor-downwash ripple (one interfering wave per rotor, at their real positions) appears on the water directly under the aircraft, strengthening as altitude drops
 - **Procedural terrain** — Infinite Perlin noise terrain with 3 biomes (canyon, mountain, plains)
 - **City stage** — Dense urban grid with buildings 15–100m tall, tight 8–15m street gaps
 - **Canyon stage** — Sharp ridged rock walls rising up to ~170m, red-brown to sandy palette, 30–60m valley gaps
