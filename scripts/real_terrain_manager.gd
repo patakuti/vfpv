@@ -342,24 +342,30 @@ func _build_mesh(location_id: String) -> void:
 	var dst_size: int = src_size / step + 1
 
 	var src_water: PackedByteArray = data["water_mask"]
+	var resolution_m: float = data["resolution_m"]
+
+	# Max height is measured from the full-resolution data, not the
+	# downsampled grid, so the boundary high-res subdivision below (which
+	# reads real elevations that downsampling may have skipped) never sees a
+	# value above what _vertex_color()'s height ratio was normalized against.
+	var max_h: float = -1e9
+	for h in src:
+		max_h = maxf(max_h, h)
 
 	var heights := PackedFloat32Array()
 	heights.resize(dst_size * dst_size)
 	var water := PackedByteArray()
 	water.resize(dst_size * dst_size)
-	var max_h: float = -1e9
 	for z in range(dst_size):
 		for x in range(dst_size):
 			var sx: int = mini(x * step, src_size - 1)
 			var sz: int = mini(z * step, src_size - 1)
 			var src_idx := sz * src_size + sx
-			var h: float = src[src_idx]
 			var dst_idx := z * dst_size + x
-			heights[dst_idx] = h
+			heights[dst_idx] = src[src_idx]
 			water[dst_idx] = src_water[src_idx]
-			max_h = maxf(max_h, h)
 
-	var cell_m: float = data["resolution_m"] * step
+	var cell_m: float = resolution_m * step
 
 	# Pass 1: smooth per-vertex normals (averaged from adjacent face normals).
 	# Real mountains are broad, gently-curved forms — flat per-face normals
@@ -414,9 +420,13 @@ func _build_mesh(location_id: String) -> void:
 			colors[i] = _vertex_color(heights[i], max_h, normals[i], relief[i], location_id)
 
 	# Quads where every corner is a water cell go to their own flat, unshaded
-	# mesh (its own reflective material); everything else — land and the
-	# land/water boundary — stays on the shaded land mesh exactly as before,
-	# so the existing coastline color blend is untouched.
+	# mesh (its own reflective material); quads that are entirely land stay on
+	# the shaded land mesh, both using the downsampled grid as before (this is
+	# most of the area, so it keeps the original performance). Quads whose
+	# underlying full-resolution data is a mix of land and water are the
+	# coastline itself — those are rebuilt from the full-resolution source
+	# data instead of the downsampled grid, so the coastline's shape doesn't
+	# collapse to the mesh's (much coarser) quad grid.
 	var land_st := SurfaceTool.new()
 	land_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var water_st := SurfaceTool.new()
@@ -430,13 +440,33 @@ func _build_mesh(location_id: String) -> void:
 			var idx01 := idx00 + dst_size
 			var idx11 := idx01 + 1
 
+			var sx0: int = mini(x * step, src_size - 1)
+			var sx1: int = mini((x + 1) * step, src_size - 1)
+			var sz0: int = mini(z * step, src_size - 1)
+			var sz1: int = mini((z + 1) * step, src_size - 1)
+
+			var any_water := false
+			var any_land := false
+			for bz in range(sz0, sz1 + 1):
+				for bx in range(sx0, sx1 + 1):
+					if src_water[bz * src_size + bx] != 0:
+						any_water = true
+					else:
+						any_land = true
+
+			if any_water and any_land and sx1 > sx0 and sz1 > sz0:
+				water_quad_count += _emit_coastline_submesh(
+					src, src_water, src_size, sx0, sx1, sz0, sz1, resolution_m,
+					max_h, location_id, land_st, water_st
+				)
+				continue
+
 			var v00 := Vector3(x * cell_m, heights[idx00], z * cell_m)
 			var v10 := Vector3((x + 1) * cell_m, heights[idx10], z * cell_m)
 			var v01 := Vector3(x * cell_m, heights[idx01], (z + 1) * cell_m)
 			var v11 := Vector3((x + 1) * cell_m, heights[idx11], (z + 1) * cell_m)
 
-			var all_water: bool = water[idx00] != 0 and water[idx10] != 0 and water[idx01] != 0 and water[idx11] != 0
-			if all_water:
+			if any_water:  # all_water (the "any_water and any_land" mixed case is handled above)
 				water_quad_count += 1
 				water_st.set_normal(Vector3.UP); water_st.add_vertex(v00)
 				water_st.set_normal(Vector3.UP); water_st.add_vertex(v10)
@@ -489,6 +519,90 @@ func _build_mesh(location_id: String) -> void:
 
 	_build_landmarks(location_id)
 	_compute_spawn(location_id, dst_size, cell_m, max_h)
+
+# Rebuilds a single downsampled-grid quad whose full-resolution source data
+# (unlike its 4 coarse corners) contains both land and water — i.e. an actual
+# stretch of coastline that downsampling would otherwise flatten into one of
+# the mesh's large axis-aligned quads. Re-triangulates that quad at the
+# source's native pixel resolution (~8m) so the land/water split follows the
+# real coastline shape instead of the coarse mesh grid, and appends the
+# result straight into the shared land/water SurfaceTools. Returns the number
+# of all-water sub-quads emitted (added to the caller's water_quad_count).
+func _emit_coastline_submesh(
+	src: PackedFloat32Array, src_water: PackedByteArray, src_size: int,
+	sx0: int, sx1: int, sz0: int, sz1: int, resolution_m: float, max_h: float,
+	location_id: String, land_st: SurfaceTool, water_st: SurfaceTool
+) -> int:
+	var water_subquad_count := 0
+	for sz in range(sz0, sz1):
+		for sx in range(sx0, sx1):
+			var i00 := sz * src_size + sx
+			var i10 := sz * src_size + (sx + 1)
+			var i01 := (sz + 1) * src_size + sx
+			var i11 := (sz + 1) * src_size + (sx + 1)
+
+			var v00 := Vector3(sx * resolution_m, src[i00], sz * resolution_m)
+			var v10 := Vector3((sx + 1) * resolution_m, src[i10], sz * resolution_m)
+			var v01 := Vector3(sx * resolution_m, src[i01], (sz + 1) * resolution_m)
+			var v11 := Vector3((sx + 1) * resolution_m, src[i11], (sz + 1) * resolution_m)
+
+			var all_water: bool = src_water[i00] != 0 and src_water[i10] != 0 and src_water[i01] != 0 and src_water[i11] != 0
+			if all_water:
+				water_subquad_count += 1
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v00)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v10)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v01)
+
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v10)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v11)
+				water_st.set_normal(Vector3.UP); water_st.add_vertex(v01)
+			else:
+				var n00 := _native_normal(src, src_size, sx, sz, resolution_m)
+				var n10 := _native_normal(src, src_size, sx + 1, sz, resolution_m)
+				var n01 := _native_normal(src, src_size, sx, sz + 1, resolution_m)
+				var n11 := _native_normal(src, src_size, sx + 1, sz + 1, resolution_m)
+
+				var c00 := SEA_COLOR if src_water[i00] != 0 else _vertex_color(src[i00], max_h, n00, _native_relief(src, src_size, sx, sz), location_id)
+				var c10 := SEA_COLOR if src_water[i10] != 0 else _vertex_color(src[i10], max_h, n10, _native_relief(src, src_size, sx + 1, sz), location_id)
+				var c01 := SEA_COLOR if src_water[i01] != 0 else _vertex_color(src[i01], max_h, n01, _native_relief(src, src_size, sx, sz + 1), location_id)
+				var c11 := SEA_COLOR if src_water[i11] != 0 else _vertex_color(src[i11], max_h, n11, _native_relief(src, src_size, sx + 1, sz + 1), location_id)
+
+				land_st.set_color(c00); land_st.set_normal(n00); land_st.add_vertex(v00)
+				land_st.set_color(c10); land_st.set_normal(n10); land_st.add_vertex(v10)
+				land_st.set_color(c01); land_st.set_normal(n01); land_st.add_vertex(v01)
+
+				land_st.set_color(c10); land_st.set_normal(n10); land_st.add_vertex(v10)
+				land_st.set_color(c11); land_st.set_normal(n11); land_st.add_vertex(v11)
+				land_st.set_color(c01); land_st.set_normal(n01); land_st.add_vertex(v01)
+	return water_subquad_count
+
+# Per-vertex normal at native pixel resolution, from a central difference of
+# the full-resolution source heights (not the smoothed-normal averaging pass
+# used for the downsampled grid, which only covers the coarse grid's
+# vertices). Used only for the coastline high-res rebuild above, where the
+# affected area is a thin strip, so the shading seam against the coarse
+# grid's averaged normals is not noticeable in practice.
+func _native_normal(src: PackedFloat32Array, src_size: int, sx: int, sz: int, resolution_m: float) -> Vector3:
+	var xm := maxi(sx - 1, 0)
+	var xp := mini(sx + 1, src_size - 1)
+	var zm := maxi(sz - 1, 0)
+	var zp := mini(sz + 1, src_size - 1)
+	var dx: float = (src[sz * src_size + xp] - src[sz * src_size + xm]) / ((xp - xm) * resolution_m)
+	var dz: float = (src[zp * src_size + sx] - src[zm * src_size + sx]) / ((zp - zm) * resolution_m)
+	return Vector3(-dx, 1.0, -dz).normalized()
+
+# Native-resolution counterpart of the downsampled grid's relief pass (see
+# _build_mesh): height minus the average of the 4 immediate neighbor pixels.
+func _native_relief(src: PackedFloat32Array, src_size: int, sx: int, sz: int) -> float:
+	var xm := maxi(sx - 1, 0)
+	var xp := mini(sx + 1, src_size - 1)
+	var zm := maxi(sz - 1, 0)
+	var zp := mini(sz + 1, src_size - 1)
+	var avg_neighbor: float = (
+		src[sz * src_size + xm] + src[sz * src_size + xp]
+		+ src[zm * src_size + sx] + src[zp * src_size + sx]
+	) * 0.25
+	return src[sz * src_size + sx] - avg_neighbor
 
 # Render resolution of the mirror-camera reflection, relative to the main
 # viewport. Downscaled for cost; SCREEN_UV mapping in water_reflection.gdshader
