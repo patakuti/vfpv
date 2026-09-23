@@ -92,6 +92,7 @@ See [ANDROID.md](ANDROID.md).
 | `:stage tube` | Switch to tube tunnel stage |
 | `:stage fuji` | Switch to real-world Mt. Fuji stage (downloads GSI elevation data) |
 | `:stage miyajima` | Switch to real-world Miyajima stage (Itsukushima Shrine Otorii, astronomically accurate sunset lighting) |
+| `:stage goldengate` | Switch to real-world Golden Gate Bridge stage (downloads AWS Terrain Tiles elevation data) |
 | `:quality low/mid/high/auto` | Set rendering quality (default: auto) |
 | `:audio music` | BGM music |
 | `:audio drone` | Drone propeller sound (pitch linked to motor output) |
@@ -102,11 +103,12 @@ See [ANDROID.md](ANDROID.md).
 ## Features
 
 - **Vi-style controls** — Navigate with familiar vim keybindings
-- **Stage selection** — `:stage terrain` for natural terrain, `:stage city` for urban flying, `:stage canyon` for towering rock walls, `:stage tube` for enclosed tunnel racing, `:stage fuji`/`:stage miyajima` for real-world terrain
-- **Real-world terrain stage** — Live-downloads elevation data from Japan's Geospatial Information Authority (GSI) for Mt. Fuji and Miyajima, and builds a real terrain patch to fly around (requires network access; Desktop/Web only)
+- **Stage selection** — `:stage terrain` for natural terrain, `:stage city` for urban flying, `:stage canyon` for towering rock walls, `:stage tube` for enclosed tunnel racing, `:stage fuji`/`:stage miyajima`/`:stage goldengate` for real-world terrain
+- **Real-world terrain stage** — Live-downloads elevation data for Mt. Fuji, Miyajima, and the Golden Gate Bridge, and builds a real terrain patch to fly around (requires network access; Desktop/Web only). Japanese locations use Japan's Geospatial Information Authority (GSI); the Golden Gate Bridge uses AWS Terrain Tiles, since GSI only covers Japan
   - Real terrain shading: slope- and local-relief-based shading (from the actual downloaded elevation data) so gentle real-world mountains read clearly instead of looking flat
   - Miyajima stage: adds a to-scale Itsukushima Shrine Otorii (built from primitives, positioned from real-world coordinates) and points the sun at its real astronomical position for today's sunset at that location
-  - Water reflection: the sea (wherever the elevation tiles have no data) is a real-time planar reflection — a mirror camera renders the scene and composites it onto the water surface, so the aircraft, terrain, and sky all reflect
+  - Golden Gate Bridge stage: adds a to-scale bridge (towers, main cables on a real parabola, suspenders, deck — all built from primitives at real-world coordinates/dimensions where published) with an open lattice tower structure to fly through
+  - Water reflection: the sea (wherever the elevation tiles have no data, or — for the Golden Gate Bridge's AWS-sourced data — below sea level) is a real-time planar reflection — a mirror camera renders the scene and composites it onto the water surface, so the aircraft, terrain, and sky all reflect
   - Water-proximity cues: the low-altitude particle effect switches to white spray over water (color/spread only — intensity is altitude-based, matching the existing dust behavior), and a rotor-downwash ripple (one interfering wave per rotor, at their real positions) appears on the water directly under the aircraft, strengthening as altitude drops
 - **Procedural terrain** — Infinite Perlin noise terrain with 3 biomes (canyon, mountain, plains)
 - **City stage** — Dense urban grid with buildings 15–100m tall, tight 8–15m street gaps
@@ -177,5 +179,7 @@ This tool was designed and implemented entirely by Claude. The human provided th
 ## Credits
 
 - Music: "Future Travel" by Zodik ([CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/)) — https://opengameart.org/content/zodik-future-travel
-- Elevation data: [国土地理院](https://www.gsi.go.jp/) (Geospatial Information Authority of Japan), 標高タイル（基盤地図情報数値標高モデル）
-- Otorii location: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors ([ODbL](https://opendatacommons.org/licenses/odbl/))
+- Elevation data (Mt. Fuji, Miyajima): [国土地理院](https://www.gsi.go.jp/) (Geospatial Information Authority of Japan), 標高タイル（基盤地図情報数値標高モデル）
+- Elevation data (Golden Gate Bridge): [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (Terrarium format), sourced from 3DEP data courtesy of the U.S. Geological Survey
+- Otorii location, Golden Gate Bridge tower positions: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors ([ODbL](https://opendatacommons.org/licenses/odbl/))
+- Golden Gate Bridge dimensions: [Golden Gate Bridge Highway and Transportation District](https://www.goldengate.org/bridge/history-research/statistics-data/design-construction-stats/)
