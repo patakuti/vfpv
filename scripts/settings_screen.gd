@@ -16,9 +16,9 @@ var _camera_toggle: Button
 var _audio_mode_option: OptionButton
 
 var _ui_scale: float = 1.0
-var _FONT_TITLE: int = 36
-var _FONT_SECTION: int = 22
-var _FONT_ITEM: int = 26
+var _FONT_TITLE: int = 44
+var _FONT_SECTION: int = 30
+var _FONT_ITEM: int = 36
 var _BTN_H: int = 80
 var _ROW_H: int = 70
 
@@ -27,9 +27,9 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	_ui_scale = _compute_ui_scale()
-	_FONT_TITLE   = int(36 * _ui_scale)
-	_FONT_SECTION = int(22 * _ui_scale)
-	_FONT_ITEM    = int(26 * _ui_scale)
+	_FONT_TITLE   = int(44 * _ui_scale)
+	_FONT_SECTION = int(30 * _ui_scale)
+	_FONT_ITEM    = int(36 * _ui_scale)
 	_BTN_H        = int(110 * _ui_scale)
 	_ROW_H        = int(100 * _ui_scale)
 	_build_ui()
@@ -63,9 +63,9 @@ func _build_ui() -> void:
 	add_child(bg)
 
 	var panel := Panel.new()
-	panel.anchor_left = 0.05
+	panel.anchor_left = 0.25
 	panel.anchor_top = 0.04
-	panel.anchor_right = 0.95
+	panel.anchor_right = 0.75
 	panel.anchor_bottom = 0.96
 	add_child(panel)
 
@@ -73,31 +73,10 @@ func _build_ui() -> void:
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.add_child(scroll)
 
-	var strip_color := Color(0.2, 0.5, 0.9, 0.18)
-	var left_strip := ColorRect.new()
-	left_strip.anchor_left   = 0.0
-	left_strip.anchor_top    = 0.0
-	left_strip.anchor_right  = 0.0
-	left_strip.anchor_bottom = 1.0
-	left_strip.offset_right  = int(80 * _ui_scale)
-	left_strip.color = strip_color
-	left_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(left_strip)
-
-	var right_strip := ColorRect.new()
-	right_strip.anchor_left   = 1.0
-	right_strip.anchor_top    = 0.0
-	right_strip.anchor_right  = 1.0
-	right_strip.anchor_bottom = 1.0
-	right_strip.offset_left   = -int(80 * _ui_scale)
-	right_strip.color = strip_color
-	right_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(right_strip)
-
 	var margin := MarginContainer.new()
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.add_theme_constant_override("margin_left", int(80 * _ui_scale))
-	margin.add_theme_constant_override("margin_right", int(80 * _ui_scale))
+	margin.add_theme_constant_override("margin_left", int(30 * _ui_scale))
+	margin.add_theme_constant_override("margin_right", int(30 * _ui_scale))
 	margin.add_theme_constant_override("margin_top", int(20 * _ui_scale))
 	margin.add_theme_constant_override("margin_bottom", int(20 * _ui_scale))
 	scroll.add_child(margin)
