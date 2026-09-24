@@ -124,7 +124,7 @@ func _build_ui() -> void:
 
 	# --- Stage ---
 	_section(vbox, "Stage")
-	_stage_option = _option(vbox, ["Terrain", "City", "Canyon", "Tube"])
+	_stage_option = _option(vbox, ["Terrain", "City", "Canyon", "Tube", "Fuji", "Miyajima", "Golden Gate", "Tower Bridge"])
 	vbox.add_child(HSeparator.new())
 
 	# --- Quality ---
@@ -252,7 +252,7 @@ func _sync_from_settings() -> void:
 		_max_speed_val = SettingsManager.max_speed
 		_update_speed_labels()
 
-	var stages := ["terrain", "city", "canyon", "tube"]
+	var stages := ["terrain", "city", "canyon", "tube", "fuji", "miyajima", "goldengate", "towerbridge"]
 	var si := stages.find(SettingsManager.stage)
 	_stage_option.selected = si if si >= 0 else 0
 
@@ -300,7 +300,7 @@ func _apply_and_save() -> void:
 		SettingsManager.min_speed = _min_speed_val
 		SettingsManager.max_speed = _max_speed_val
 
-	var stages := ["terrain", "city", "canyon", "tube"]
+	var stages := ["terrain", "city", "canyon", "tube", "fuji", "miyajima", "goldengate", "towerbridge"]
 	SettingsManager.stage = stages[_stage_option.selected]
 
 	var qualities := ["low", "mid", "high", "auto"]
