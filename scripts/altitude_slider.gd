@@ -8,9 +8,9 @@ const BASE_RING := Color(1.0, 1.0, 1.0, 0.45)
 const GROOVE_COLOR := Color(1.0, 1.0, 1.0, 0.25)
 const DEADZONE_COLOR := Color(1.0, 1.0, 1.0, 0.35)
 const ARROW_COLOR := Color(1.0, 1.0, 1.0, 0.45)
-const KNOB_IDLE := Color(1.0, 1.0, 1.0, 0.9)
-const KNOB_MAX := Color(1.0, 0.55, 0.1, 0.95)
-const KNOB_EDGE := Color(0.0, 0.0, 0.0, 0.5)
+const KNOB_IDLE := Color(0.32, 0.32, 0.32, 0.95)
+const KNOB_MAX := Color(0.16, 0.16, 0.16, 0.95)
+const KNOB_EDGE := Color(1.0, 1.0, 1.0, 0.55)
 const SHADOW_COLOR := Color(0.0, 0.0, 0.0, 0.3)
 const KNOB_RADIUS_RATIO: float = 0.35  # of base radius
 
