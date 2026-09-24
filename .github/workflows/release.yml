@@ -41,6 +41,10 @@ jobs:
 
       - name: Setup Android build
         run: |
+          # HOME is /github/home in Actions, so link the image's editor settings
+          # (which hold the Android/Java SDK paths) into it
+          mkdir -p /github/home/.config
+          ln -s /root/.config/godot /github/home/.config/godot
           # android/ is gitignored, so generate the gradle build template here
           mkdir -p android/build
           unzip -q /root/.local/share/godot/export_templates/4.6.stable/android_source.zip -d android/build
