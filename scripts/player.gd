@@ -13,7 +13,7 @@ var _is_android: bool = false
 var speed: float = 80.0
 var altitude_control_scale: float = 1.0  # Android: per-stage multiplier on altitude rate (set by main.gd)
 var base_speed: float = 80.0
-const MIN_SPEED: float = 20.0
+const MIN_SPEED: float = 5.0
 const MAX_SPEED: float = 400.0
 
 # Boost

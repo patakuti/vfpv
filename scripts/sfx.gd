@@ -27,7 +27,7 @@ const DRONE_POWER_SMOOTH: float = 8.0  # how fast motor power tracks (1/s)
 const DRONE_FREQ_MIN: float = 500.0    # Hz at minimum motor power
 const DRONE_FREQ_MAX: float = 1800.0   # Hz at full motor power (harmonics reach 5400 Hz)
 const DRONE_SPEED_WEIGHT: float = 0.5  # blend ratio of speed vs motor_power in pitch (0=motor only, 1=speed only)
-const DRONE_SPEED_MIN: float = 20.0    # must match player.MIN_SPEED
+const DRONE_SPEED_MIN: float = 5.0     # must match player.MIN_SPEED
 const DRONE_SPEED_MAX: float = 400.0   # must match player.MAX_SPEED
 
 var player: CharacterBody3D
