@@ -13,7 +13,7 @@ var _is_android: bool = false
 var speed: float = 80.0
 var altitude_control_scale: float = 1.0  # Android: per-stage multiplier on altitude rate (set by main.gd)
 var base_speed: float = 80.0
-const MIN_SPEED: float = 20.0
+const MIN_SPEED: float = 5.0
 const MAX_SPEED: float = 400.0
 
 # Boost
@@ -88,7 +88,7 @@ const BANK_SMOOTHING: float = 8.0  # lerp speed
 var _current_bank: float = 0.0  # current bank angle in degrees
 
 # Pitch tilt (nose-down proportional to speed)
-const PITCH_TILT_MAX: float = 60.0  # degrees nose-down at max speed
+const PITCH_TILT_MAX: float = 40.0  # degrees nose-down at max speed
 const PITCH_TILT_SMOOTHING: float = 3.0
 var _current_pitch_tilt: float = 0.0
 
