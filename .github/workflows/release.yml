@@ -25,7 +25,7 @@ jobs:
 
       - name: Setup export directories
         run: |
-          mkdir -p build/linux build/windows build/Web
+          mkdir -p build/linux build/windows build/Web build/android
 
       - name: Import project
         run: godot --headless --import 2>&1 || true
@@ -38,6 +38,28 @@ jobs:
 
       - name: Export Web
         run: godot --headless --export-release "Web" build/Web/index.html
+
+      - name: Setup Android build
+        run: |
+          # android/ is gitignored, so generate the gradle build template here
+          mkdir -p android/build
+          unzip -q /root/.local/share/godot/export_templates/4.6.stable/android_source.zip -d android/build
+          echo "4.6.stable" > android/.build_version
+          # Decode the release keystore (kept in GitHub Secrets, never committed)
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          # Derive the app version from the tag (v0.3.0 -> 0.3.0); version code is monotonic
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s|^version/name=.*|version/name=\"${VERSION}\"|" export_presets.cfg
+          sed -i "s|^version/code=.*|version/code=${GITHUB_RUN_NUMBER}|" export_presets.cfg
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+      - name: Export Android
+        run: godot --headless --export-release "Android" build/android/vfpv-android.apk
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.keystore
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.ANDROID_KEYSTORE_USER }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
 
       - name: Package Linux
         run: |
@@ -61,4 +83,5 @@ jobs:
             vfpv-linux-x86_64.zip
             vfpv-windows-x86_64.zip
             vfpv-web.zip
+            build/android/vfpv-android.apk
           generate_release_notes: true
