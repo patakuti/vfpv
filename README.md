@@ -56,7 +56,7 @@ Then open `http://localhost:8000` in your browser.
 
 ### Android
 
-See [ANDROID.md](ANDROID.md).
+Download `vfpv-android.apk` from the [Releases](../../releases) page, or see [ANDROID.md](ANDROID.md) to build it yourself.
 
 ## Controls
 

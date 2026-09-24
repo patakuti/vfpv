@@ -8,6 +8,12 @@ Drone FPV flight controlled by tilting your device.
 - Accelerometer (required for tilt control)
 - arm64-v8a or x86_64 device / emulator
 
+## Download
+
+Each GitHub Release (created by pushing a `v*` tag) includes a signed `vfpv-android.apk`. The app version is taken from the tag (`v0.3.0` → `0.3.0`).
+
+The release workflow needs these repository secrets: `ANDROID_KEYSTORE_BASE64` (release keystore, base64-encoded, e.g. `base64 -w0 vfpv-release.keystore`), `ANDROID_KEYSTORE_USER` (key alias) and `ANDROID_KEYSTORE_PASSWORD`.
+
 ## Build & Install
 
 ### Prerequisites
