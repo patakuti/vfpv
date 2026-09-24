@@ -26,3 +26,6 @@ docs/*.import
 02_design.md
 03_plan.md
 CLAUDE.md
+
+# IDE
+.idea/
