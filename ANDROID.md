@@ -43,8 +43,8 @@ adb -s emulator-5554 shell monkey -p com.patakuti.vfpv -c android.intent.categor
 | Tilt forward | Increase speed |
 | Tilt back | Decrease speed |
 | Tilt left / right | Yaw left / right |
-| Swipe up on right half of screen | Ascend |
-| Swipe down on right half of screen | Descend |
+| Touch right half of screen and move finger up | Ascend (rate proportional to distance from the touch point; holds while the finger is kept still) |
+| Touch right half of screen and move finger down | Descend (same) |
 | Pause button (top-left) | Open pause menu |
 
 Speed range and tilt sensitivity can be adjusted in the Settings screen.

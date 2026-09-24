@@ -150,6 +150,7 @@ scripts/
   player.gd            # Flight physics, boost, crash/respawn
   vi_input.gd          # Vi-style input handling (desktop)
   android_input.gd     # Accelerometer + touch input (Android)
+  altitude_slider.gd   # Floating altitude slider overlay (Android)
   settings_manager.gd  # Persistent settings via ConfigFile (Android)
   terrain_manager.gd   # Procedural terrain chunk management
   city_manager.gd      # Urban city stage chunk management
