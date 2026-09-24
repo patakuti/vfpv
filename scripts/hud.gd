@@ -40,13 +40,14 @@ func _ready() -> void:
 func _add_pause_button() -> void:
 	_pause_button = Button.new()
 	_pause_button.text = "| |"
-	_pause_button.custom_minimum_size = Vector2(120, 80)
+	_pause_button.add_theme_font_size_override("font_size", 40)
+	_pause_button.custom_minimum_size = Vector2(180, 120)
 	_pause_button.anchor_left = 0.0
 	_pause_button.anchor_top = 0.0
 	_pause_button.anchor_right = 0.0
 	_pause_button.anchor_bottom = 0.0
-	_pause_button.offset_right = 120.0
-	_pause_button.offset_bottom = 80.0
+	_pause_button.offset_right = 180.0
+	_pause_button.offset_bottom = 120.0
 	# Must respond even while tree is paused
 	_pause_button.process_mode = Node.PROCESS_MODE_ALWAYS
 	_pause_button.pressed.connect(_on_pause_button_pressed)
