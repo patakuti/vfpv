@@ -11,6 +11,7 @@ var _is_android: bool = false
 
 # Speed
 var speed: float = 80.0
+var altitude_control_scale: float = 1.0  # Android: per-stage multiplier on altitude rate (set by main.gd)
 var base_speed: float = 80.0
 const MIN_SPEED: float = 20.0
 const MAX_SPEED: float = 400.0
@@ -144,7 +145,7 @@ func _physics_process(delta: float) -> void:
 		if horiz_fwd.length_squared() > 0.001:
 			horiz_fwd = horiz_fwd.normalized()
 		velocity = horiz_fwd * current_speed
-		velocity.y = _input_handler.altitude_delta
+		velocity.y = _input_handler.altitude_delta * altitude_control_scale
 	else:
 		# --- Desktop: original flight model ---
 		var pitch_in: float = _input_handler.pitch_input

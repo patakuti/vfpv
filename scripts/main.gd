@@ -95,6 +95,7 @@ func switch_stage(stage_name: String) -> void:
 		_:
 			return
 
+	player.altitude_control_scale = 1.0
 	player.respawn()
 
 func _on_real_terrain_ready(location_id: String) -> void:
@@ -110,6 +111,7 @@ func _on_real_terrain_ready(location_id: String) -> void:
 	if loc.has("lighting"):
 		_apply_sunset_lighting(loc["lat"], loc["lon"], loc["lighting"])
 
+	player.altitude_control_scale = loc.get("altitude_control_scale", 1.0)
 	player.set_spawn(real.get_spawn_position(), real.get_spawn_rotation())
 	player.respawn()
 

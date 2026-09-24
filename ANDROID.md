@@ -43,11 +43,11 @@ adb -s emulator-5554 shell monkey -p com.patakuti.vfpv -c android.intent.categor
 | Tilt forward | Increase speed |
 | Tilt back | Decrease speed |
 | Tilt left / right | Yaw left / right |
-| Swipe up on right half of screen | Ascend |
-| Swipe down on right half of screen | Descend |
+| Touch right half of screen and move finger up | Ascend (rate proportional to distance from the touch point; holds while the finger is kept still) |
+| Touch right half of screen and move finger down | Descend (same) |
 | Pause button (top-left) | Open pause menu |
 
-Speed range and tilt sensitivity can be adjusted in the Settings screen.
+The speed range is fixed on Android (5–300 m/s; flat = min, tilt forward = max). On the Miyajima stage the altitude rate is halved (max ±30 m/s instead of ±60 m/s) for finer control.
 
 ## Pause Menu
 
@@ -66,8 +66,6 @@ Accessible from the pause menu.
 | Setting | Description |
 |---|---|
 | Calibrate Tilt | Set current device orientation as neutral (flat = min speed, tilt forward = max speed) |
-| Min Speed | Minimum flight speed in m/s (10–150) |
-| Max Speed | Maximum flight speed in m/s (50–300) |
 | Stage | Select terrain type: Terrain / City / Canyon / Tube / Fuji / Miyajima / Golden Gate / Tower Bridge (the last four are real-world terrain stages and require network access) |
 | Quality | Rendering quality: Low / Mid / High / Auto |
 | God Mode | Bounce off terrain instead of crashing |

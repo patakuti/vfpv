@@ -14,6 +14,7 @@ var _is_android: bool = false
 var _pause_button: Button
 var _pause_menu: Node
 var _settings_screen: Node
+var _altitude_slider: Control
 
 func _ready() -> void:
 	_is_android = (OS.get_name() == "Android")
@@ -23,6 +24,8 @@ func _ready() -> void:
 	if _is_android:
 		boost_bar.visible = false
 		_add_pause_button()
+		_altitude_slider = preload("res://scripts/altitude_slider.gd").new()
+		add_child(_altitude_slider)
 
 	_debug_label = Label.new()
 	_debug_label.anchors_preset = 1  # top-right
@@ -87,6 +90,8 @@ func _on_settings_screen_closed() -> void:
 
 func setup(p_player: CharacterBody3D, p_vi_input: Node) -> void:
 	player = p_player
+	if _altitude_slider:
+		_altitude_slider.player = p_player
 	vi_input = p_vi_input
 
 func _process(_delta: float) -> void:

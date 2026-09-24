@@ -15,7 +15,7 @@ var audio_mode: String = "drone"  # "music", "drone", "off"
 func _ready() -> void:
 	load_settings()
 	if OS.get_name() == "Android":
-		min_speed = 10.0
+		min_speed = 5.0
 		max_speed = 300.0
 
 func load_settings() -> void:

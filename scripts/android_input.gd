@@ -5,9 +5,10 @@ const FILTER_ALPHA: float = 0.15
 const MAX_PITCH_TILT: float = 0.30  # diff.y threshold → max speed
 const MAX_YAW_TILT: float = 0.30    # diff.x threshold → max yaw
 
-# Touch altitude
-const ALTITUDE_SPEED: float = 60.0       # m/s cap for swipe control
-const ALTITUDE_SENSITIVITY: float = 0.08  # pixels/sec → m/s (frame-rate independent)
+# Touch altitude (floating vertical slider: offset from touch-down point → climb rate)
+const ALTITUDE_SPEED: float = 60.0       # m/s at full deflection
+const ALTITUDE_DEADZONE_RATIO: float = 0.02  # of viewport height; offsets within this are ignored
+const ALTITUDE_FULL_RATIO: float = 0.20      # of viewport height that reaches full deflection
 
 # Debug
 const DEBUG_SPEED_STEP: float = 0.1  # fraction of speed range per UP/DOWN press
@@ -20,6 +21,13 @@ var boost_pressed: bool = false  # no boost on Android
 # --- Android-specific ---
 var speed_target: float = 0.0
 var altitude_delta: float = 0.0
+# Altitude slider state (read by altitude_slider.gd for drawing)
+var altitude_touch_active: bool = false
+var altitude_origin: Vector2 = Vector2.ZERO
+var altitude_touch_pos: Vector2 = Vector2.ZERO
+var altitude_ratio: float = 0.0  # -1..1, positive = ascend
+var altitude_deadzone_px: float = 0.0  # fixed at touch-down from viewport height
+var altitude_full_px: float = 1.0
 var is_pause_requested: bool = false
 
 var _filtered_gravity: Vector3 = Vector3.DOWN
@@ -82,21 +90,35 @@ func _handle_touch(event: InputEvent) -> void:
 	var half_w := get_viewport().get_visible_rect().size.x * 0.5
 
 	if event is InputEventScreenTouch:
-		if event.position.x >= half_w:
-			if event.pressed:
+		if event.pressed:
+			if event.position.x >= half_w and _right_touch_id == -1:
 				_right_touch_id = event.index
-			elif event.index == _right_touch_id:
-				_right_touch_id = -1
-				altitude_delta = 0.0
+				altitude_touch_active = true
+				altitude_origin = event.position
+				var view_h := get_viewport().get_visible_rect().size.y
+				altitude_deadzone_px = view_h * ALTITUDE_DEADZONE_RATIO
+				altitude_full_px = view_h * ALTITUDE_FULL_RATIO
+				altitude_touch_pos = event.position
+				_set_altitude_ratio(0.0)
+		elif event.index == _right_touch_id:
+			_right_touch_id = -1
+			altitude_touch_active = false
+			_set_altitude_ratio(0.0)
 
 	elif event is InputEventScreenDrag:
 		if event.index == _right_touch_id:
-			# Screen Y+ is downward; up-drag (negative relative.y) → ascend
-			altitude_delta = clampf(-event.velocity.y * ALTITUDE_SENSITIVITY,
-					-ALTITUDE_SPEED, ALTITUDE_SPEED)
+			altitude_touch_pos = event.position
+			# Screen Y+ is downward; dragging above the origin → ascend
+			var offset: float = altitude_origin.y - event.position.y
+			var magnitude := maxf(absf(offset) - altitude_deadzone_px, 0.0)
+			var ratio := clampf(magnitude / (altitude_full_px - altitude_deadzone_px), 0.0, 1.0)
+			_set_altitude_ratio(ratio * signf(offset))
 			if OS.is_debug_build():
-				print("[alt] rel.y=%.3f vel.y=%.3f delta=%.3f" % [
-						event.relative.y, event.velocity.y, altitude_delta])
+				print("[alt] offset=%.1f ratio=%.3f delta=%.3f" % [offset, altitude_ratio, altitude_delta])
+
+func _set_altitude_ratio(ratio: float) -> void:
+	altitude_ratio = ratio
+	altitude_delta = ratio * ALTITUDE_SPEED
 
 func _handle_debug_keys(event: InputEvent) -> void:
 	if not event is InputEventKey or event.echo:
