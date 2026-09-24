@@ -7,8 +7,8 @@ const MAX_YAW_TILT: float = 0.30    # diff.x threshold → max yaw
 
 # Touch altitude (floating vertical slider: offset from touch-down point → climb rate)
 const ALTITUDE_SPEED: float = 60.0       # m/s at full deflection
-const ALTITUDE_DEADZONE_PX: float = 15.0  # offsets within this are ignored
-const ALTITUDE_FULL_PX: float = 150.0     # offset (px) that reaches full deflection
+const ALTITUDE_DEADZONE_RATIO: float = 0.02  # of viewport height; offsets within this are ignored
+const ALTITUDE_FULL_RATIO: float = 0.20      # of viewport height that reaches full deflection
 
 # Debug
 const DEBUG_SPEED_STEP: float = 0.1  # fraction of speed range per UP/DOWN press
@@ -26,6 +26,8 @@ var altitude_touch_active: bool = false
 var altitude_origin: Vector2 = Vector2.ZERO
 var altitude_touch_pos: Vector2 = Vector2.ZERO
 var altitude_ratio: float = 0.0  # -1..1, positive = ascend
+var altitude_deadzone_px: float = 0.0  # fixed at touch-down from viewport height
+var altitude_full_px: float = 1.0
 var is_pause_requested: bool = false
 
 var _filtered_gravity: Vector3 = Vector3.DOWN
@@ -93,6 +95,9 @@ func _handle_touch(event: InputEvent) -> void:
 				_right_touch_id = event.index
 				altitude_touch_active = true
 				altitude_origin = event.position
+				var view_h := get_viewport().get_visible_rect().size.y
+				altitude_deadzone_px = view_h * ALTITUDE_DEADZONE_RATIO
+				altitude_full_px = view_h * ALTITUDE_FULL_RATIO
 				altitude_touch_pos = event.position
 				_set_altitude_ratio(0.0)
 		elif event.index == _right_touch_id:
@@ -105,8 +110,8 @@ func _handle_touch(event: InputEvent) -> void:
 			altitude_touch_pos = event.position
 			# Screen Y+ is downward; dragging above the origin → ascend
 			var offset: float = altitude_origin.y - event.position.y
-			var magnitude := maxf(absf(offset) - ALTITUDE_DEADZONE_PX, 0.0)
-			var ratio := clampf(magnitude / (ALTITUDE_FULL_PX - ALTITUDE_DEADZONE_PX), 0.0, 1.0)
+			var magnitude := maxf(absf(offset) - altitude_deadzone_px, 0.0)
+			var ratio := clampf(magnitude / (altitude_full_px - altitude_deadzone_px), 0.0, 1.0)
 			_set_altitude_ratio(ratio * signf(offset))
 			if OS.is_debug_build():
 				print("[alt] offset=%.1f ratio=%.3f delta=%.3f" % [offset, altitude_ratio, altitude_delta])
