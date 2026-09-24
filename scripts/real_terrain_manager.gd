@@ -64,6 +64,9 @@ const LOCATIONS: Dictionary = {
 		# and 03_plan.md Phase 15-17) so the sun clears Mt. Misen (~535m) from
 		# a low, near-sea-level vantage.
 		"lighting": {"month": 12, "day": 21, "target_elevation_deg": 25.0, "light_color": Color(1.0, 0.72, 0.45)},
+		# Android: halve the altitude control rate for finer low-level flying
+		# around the Otorii and the water surface.
+		"altitude_control_scale": 0.5,
 	},
 	"goldengate": {
 		"name": "Golden Gate Bridge",
