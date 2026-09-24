@@ -12,13 +12,13 @@ var _max_speed_val: float = 150.0
 var _stage_option: OptionButton
 var _quality_option: OptionButton
 var _god_check: Button
-var _camera_option: OptionButton
+var _camera_toggle: Button
 var _audio_mode_option: OptionButton
 
 var _ui_scale: float = 1.0
-var _FONT_TITLE: int = 36
-var _FONT_SECTION: int = 22
-var _FONT_ITEM: int = 26
+var _FONT_TITLE: int = 44
+var _FONT_SECTION: int = 30
+var _FONT_ITEM: int = 36
 var _BTN_H: int = 80
 var _ROW_H: int = 70
 
@@ -27,11 +27,11 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	_ui_scale = _compute_ui_scale()
-	_FONT_TITLE   = int(36 * _ui_scale)
-	_FONT_SECTION = int(22 * _ui_scale)
-	_FONT_ITEM    = int(26 * _ui_scale)
-	_BTN_H        = int(80 * _ui_scale)
-	_ROW_H        = int(70 * _ui_scale)
+	_FONT_TITLE   = int(44 * _ui_scale)
+	_FONT_SECTION = int(30 * _ui_scale)
+	_FONT_ITEM    = int(36 * _ui_scale)
+	_BTN_H        = int(110 * _ui_scale)
+	_ROW_H        = int(100 * _ui_scale)
 	_build_ui()
 
 func _compute_ui_scale() -> float:
@@ -63,9 +63,9 @@ func _build_ui() -> void:
 	add_child(bg)
 
 	var panel := Panel.new()
-	panel.anchor_left = 0.05
+	panel.anchor_left = 0.25
 	panel.anchor_top = 0.04
-	panel.anchor_right = 0.95
+	panel.anchor_right = 0.75
 	panel.anchor_bottom = 0.96
 	add_child(panel)
 
@@ -73,31 +73,10 @@ func _build_ui() -> void:
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.add_child(scroll)
 
-	var strip_color := Color(0.2, 0.5, 0.9, 0.18)
-	var left_strip := ColorRect.new()
-	left_strip.anchor_left   = 0.0
-	left_strip.anchor_top    = 0.0
-	left_strip.anchor_right  = 0.0
-	left_strip.anchor_bottom = 1.0
-	left_strip.offset_right  = int(80 * _ui_scale)
-	left_strip.color = strip_color
-	left_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(left_strip)
-
-	var right_strip := ColorRect.new()
-	right_strip.anchor_left   = 1.0
-	right_strip.anchor_top    = 0.0
-	right_strip.anchor_right  = 1.0
-	right_strip.anchor_bottom = 1.0
-	right_strip.offset_left   = -int(80 * _ui_scale)
-	right_strip.color = strip_color
-	right_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(right_strip)
-
 	var margin := MarginContainer.new()
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.add_theme_constant_override("margin_left", int(80 * _ui_scale))
-	margin.add_theme_constant_override("margin_right", int(80 * _ui_scale))
+	margin.add_theme_constant_override("margin_left", int(30 * _ui_scale))
+	margin.add_theme_constant_override("margin_right", int(30 * _ui_scale))
 	margin.add_theme_constant_override("margin_top", int(20 * _ui_scale))
 	margin.add_theme_constant_override("margin_bottom", int(20 * _ui_scale))
 	scroll.add_child(margin)
@@ -172,13 +151,8 @@ func _build_ui() -> void:
 	cam_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cam_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	cam_row.add_child(cam_lbl)
-	_camera_option = OptionButton.new()
-	_camera_option.custom_minimum_size = Vector2(int(160 * _ui_scale), _ROW_H)
-	_camera_option.add_theme_font_size_override("font_size", _FONT_ITEM)
-	_camera_option.add_item("FPV")
-	_camera_option.add_item("Follow")
-	cam_row.add_child(_camera_option)
-	_camera_option.get_popup().add_theme_font_size_override("font_size", _FONT_ITEM)
+	_camera_toggle = _make_toggle(cam_row, "FPV", "Follow")
+	_camera_toggle.custom_minimum_size.x = int(160 * _ui_scale)
 	vbox.add_child(HSeparator.new())
 
 	# --- Close ---
@@ -198,17 +172,18 @@ func _btn(label: String, callback: Callable) -> Button:
 	var btn := Button.new()
 	btn.text = label
 	btn.custom_minimum_size = Vector2(0, _BTN_H)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.add_theme_font_size_override("font_size", _FONT_ITEM)
 	btn.pressed.connect(callback)
 	return btn
 
-func _make_toggle(parent: Node) -> Button:
+func _make_toggle(parent: Node, off_text: String = "OFF", on_text: String = "ON") -> Button:
 	var btn := Button.new()
 	btn.toggle_mode = true
-	btn.text = "OFF"
+	btn.text = off_text
 	btn.custom_minimum_size = Vector2(int(120 * _ui_scale), _ROW_H)
 	btn.add_theme_font_size_override("font_size", _FONT_ITEM)
-	btn.toggled.connect(func(pressed: bool) -> void: btn.text = "ON" if pressed else "OFF")
+	btn.toggled.connect(func(pressed: bool) -> void: btn.text = on_text if pressed else off_text)
 	parent.add_child(btn)
 	return btn
 
@@ -238,6 +213,7 @@ func _speed_stepper(parent: Node, dec_cb: Callable, inc_cb: Callable) -> Label:
 func _option(parent: Node, items: Array) -> OptionButton:
 	var ob := OptionButton.new()
 	ob.custom_minimum_size = Vector2(0, _ROW_H)
+	ob.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	ob.add_theme_font_size_override("font_size", _FONT_ITEM)
 	for item in items:
 		ob.add_item(item)
@@ -266,9 +242,9 @@ func _sync_from_settings() -> void:
 	var ai := audio_modes.find(SettingsManager.audio_mode)
 	_audio_mode_option.selected = ai if ai >= 0 else 0
 
-	var cameras := ["fpv", "follow"]
-	var ci := cameras.find(SettingsManager.camera_mode)
-	_camera_option.selected = ci if ci >= 0 else 0
+	var follow := SettingsManager.camera_mode == "follow"
+	_camera_toggle.button_pressed = follow
+	_camera_toggle.text = "Follow" if follow else "FPV"
 
 func _update_speed_labels() -> void:
 	_min_speed_label.text = "Min Speed: %d m/s" % int(_min_speed_val)
@@ -310,8 +286,7 @@ func _apply_and_save() -> void:
 	var audio_modes := ["music", "drone", "off"]
 	SettingsManager.audio_mode = audio_modes[_audio_mode_option.selected]
 
-	var cameras := ["fpv", "follow"]
-	SettingsManager.camera_mode = cameras[_camera_option.selected]
+	SettingsManager.camera_mode = "follow" if _camera_toggle.button_pressed else "fpv"
 
 	SettingsManager.save_settings()
 	if _player and _main:

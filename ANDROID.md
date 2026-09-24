@@ -69,7 +69,7 @@ Accessible from the pause menu.
 | Stage | Select terrain type: Terrain / City / Canyon / Tube / Fuji / Miyajima / Golden Gate / Tower Bridge (the last four are real-world terrain stages and require network access) |
 | Quality | Rendering quality: Low / Mid / High / Auto |
 | God Mode | Bounce off terrain instead of crashing |
-| Camera | FPV (first-person) or Follow camera |
+| Camera | Toggle between FPV (first-person) and Follow camera |
 
 Settings are saved to `user://settings.cfg` and restored on next launch.
 
