@@ -21,6 +21,8 @@ Keyboard-only drone FPV low-altitude high-speed flight experience built with God
   </tr>
 </table>
 
+https://github.com/user-attachments/assets/a54a5120-c1d1-4f38-bcaa-00fb4acdf352
+
 ### Real World Stages
 
 <table>
@@ -33,6 +35,8 @@ Keyboard-only drone FPV low-altitude high-speed flight experience built with God
     <td><img src="docs/8_TowerBridge.jpg" width="360"/></td>
   </tr>
 </table>
+
+https://github.com/user-attachments/assets/dbc71a8b-5d0c-4e7d-93e5-cee1c9130875
 
 ## Motivation
 
