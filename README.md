@@ -21,6 +21,19 @@ Keyboard-only drone FPV low-altitude high-speed flight experience built with God
   </tr>
 </table>
 
+### Real World Stages
+
+<table>
+  <tr>
+    <td><img src="docs/5_Fuji.jpg" width="360"/></td>
+    <td><img src="docs/6_Miyajima.jpg" width="360"/></td>
+  </tr>
+  <tr>
+    <td><img src="docs/7_GoldeGgate.jpg" width="360"/></td>
+    <td><img src="docs/8_TowerBridge.jpg" width="360"/></td>
+  </tr>
+</table>
+
 ## Motivation
 
 Drone FPV footage looks fun. This project tries to capture something like that feeling with just `h`, `j`, `k`, `l` — familiar keys for vi users. `:god` and `:auto` make it even easier; combine both and it practically flies itself.

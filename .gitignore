@@ -29,3 +29,6 @@ CLAUDE.md
 
 # IDE
 .idea/
+
+# Demo videos are hosted via GitHub user-attachments, not in git
+docs/*.mp4
