@@ -4,7 +4,10 @@
 
 Drone FPV low-altitude high-speed flight experience built with Godot Engine 4. Playable on PC (keyboard, vi-style), in a web browser, and on Android (tilt & touch).
 
-![demo](docs/demo.gif)
+<p>
+  <img src="docs/demo.gif" width="360"/>
+  <img src="docs/demo2.gif" width="360"/>
+</p>
 
 **[Play in browser on itch.io](https://patakuti.itch.io/vfpv)**
 
