@@ -5,7 +5,7 @@ const SECTION := "settings"
 
 var min_speed: float = 30.0
 var max_speed: float = 200.0
-var ref_gravity: Vector3 = Vector3.DOWN
+var ref_gravity: Vector3 = Vector3(0, -1, -1).normalized()  # ~45° tilted grip (measured on device)
 var quality: String = "auto"
 var stage: String = "terrain"
 var god_mode: bool = false

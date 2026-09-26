@@ -61,7 +61,7 @@ Settings are saved and restored on next launch.
 
 ## Notes
 
-- **Tilt calibration** — Hold the device in your preferred neutral position, typically tilted about 45° rather than flat, then tap "Calibrate" in the pause menu. The current accelerometer reading is saved as the reference: speed and steering are measured relative to it.
+- **Tilt calibration** — Before you calibrate, the neutral position defaults to the device tilted about 45° from upright (screen facing up and toward you). Hold the device in your preferred neutral position, typically tilted about 45° rather than flat, then tap "Calibrate" in the pause menu. The current accelerometer reading is saved as the reference: speed and steering are measured relative to it.
 - **Emulator** — The emulator does not have a real accelerometer. Use the debug keys (↑↓←→ / W / S) to simulate tilt and altitude in debug builds.
 - **Audio** — Same as desktop; BGM auto-starts and the crash sound is generated at runtime. There is no boost on Android.
 
