@@ -8,7 +8,9 @@ extends RefCounted
 # Verified against known reference facts (see scripts note in
 # real_terrain_manager.gd / project docs): at the equinox, sunset azimuth is
 # ~270 deg (due west) at any latitude; in the northern hemisphere summer it
-# swings north of west, in winter south of west.
+# swings north of west, in winter south of west. The hour angle is wrapped to
+# [-180, 180) so western-hemisphere longitudes (negative true solar time at
+# UTC evening) get the correct east/west side.
 
 static func _day_of_year(year: int, month: int, day: int) -> int:
 	var jan1 := Time.get_unix_time_from_datetime_dict({"year": year, "month": 1, "day": 1, "hour": 0, "minute": 0, "second": 0})
@@ -30,7 +32,7 @@ static func position(lat_deg: float, lon_deg: float, year: int, month: int, day:
 
 	var time_offset := eqtime + 4.0 * lon_deg
 	var true_solar_time := hour_utc * 60.0 + time_offset
-	var hour_angle_deg := (true_solar_time / 4.0) - 180.0
+	var hour_angle_deg := fposmod(true_solar_time / 4.0, 360.0) - 180.0
 
 	var lat := deg_to_rad(lat_deg)
 	var ha := deg_to_rad(hour_angle_deg)
@@ -47,19 +49,21 @@ static func position(lat_deg: float, lon_deg: float, year: int, month: int, day:
 
 	return {"elevation_deg": elevation_deg, "azimuth_deg": azimuth_deg}
 
-# Scans the given UTC date (minute resolution) for the moment the sun
-# descends through target_elevation_deg in the evening — i.e. the real sun
-# position for an actual golden-hour moment on this date at this location.
+# Scans the given local solar day (local solar midnight to midnight, minute
+# resolution) for the moment the sun descends through target_elevation_deg in
+# the evening — i.e. the real sun position for an actual golden-hour moment on
+# this date at this location.
 # Falls back to local solar noon if no such crossing exists that day
 # (e.g. polar day/night at extreme latitudes).
 static func find_evening_elevation(lat_deg: float, lon_deg: float, year: int, month: int, day: int, target_elevation_deg: float) -> Dictionary:
-	var prev_elev: float = 999.0
+	var solar_midnight_utc: float = -lon_deg / 15.0
+	var prev_elev: float = NAN
 	var result: Dictionary = {}
 	for minute in range(0, 24 * 60):
-		var hour_utc: float = minute / 60.0
+		var hour_utc: float = solar_midnight_utc + minute / 60.0
 		var pos := position(lat_deg, lon_deg, year, month, day, hour_utc)
 		var elev: float = pos["elevation_deg"]
-		if prev_elev > target_elevation_deg and elev <= target_elevation_deg:
+		if not is_nan(prev_elev) and prev_elev > target_elevation_deg and elev <= target_elevation_deg:
 			result = pos
 		prev_elev = elev
 	if result.is_empty():
